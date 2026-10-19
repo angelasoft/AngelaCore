@@ -35,3 +35,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Secrets / deploy ###
+src/main/resources/local-secrets.properties
+deploy/.env
+deploy/admin-dist/

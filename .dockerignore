@@ -1,0 +1,6 @@
+.git
+.gradle
+build/
+bin/
+deploy/
+src/main/resources/local-secrets.properties

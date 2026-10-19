@@ -36,6 +36,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     @Value("${app.mobile.oauth-redirect-uri}")
     private String mobileRedirectUri;
 
+    @Value("${app.cookie.secure}")
+    private boolean secureCookie;
+
     @Override
     public void onAuthenticationSuccess(
             HttpServletRequest request,
@@ -60,7 +63,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         ResponseCookie cookie = ResponseCookie.from(accessTokenCookieName, accessToken)
                 .httpOnly(true)
-                .secure(false)
+                .secure(secureCookie)
                 .path("/")
                 .sameSite("Lax")
                 .maxAge(accessTokenExpiresInSeconds)
@@ -78,6 +81,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     ) throws IOException {
         // 일회용 모드 쿠키 제거
         ResponseCookie clear = ResponseCookie.from(OAUTH_MODE_COOKIE, "")
+                .secure(secureCookie)
                 .path("/")
                 .maxAge(0)
                 .build();

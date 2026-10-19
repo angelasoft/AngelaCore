@@ -19,6 +19,9 @@ public class AuthController {
     @Value("${app.jwt.cookie-name}")
     private String accessTokenCookieName;
 
+    @Value("${app.cookie.secure}")
+    private boolean secureCookie;
+
     @GetMapping("/me")
     public ResponseEntity<?> me(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof AdminUserDetails principal)) {
@@ -36,7 +39,7 @@ public class AuthController {
     public ResponseEntity<?> logout() {
         ResponseCookie deleteCookie = ResponseCookie.from(accessTokenCookieName, "")
                 .httpOnly(true)
-                .secure(false)
+                .secure(secureCookie)
                 .path("/")
                 .sameSite("Lax")
                 .maxAge(0)

@@ -2,6 +2,7 @@ package com.angelasoft.admin.security;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.stereotype.Component;
@@ -12,6 +13,9 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
 
     public static final String OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME = "oauth2_auth_request";
     private static final int COOKIE_EXPIRE_SECONDS = 180;
+
+    @Value("${app.cookie.secure}")
+    private boolean secureCookie;
 
     @Override
     public OAuth2AuthorizationRequest loadAuthorizationRequest(HttpServletRequest request) {
@@ -34,7 +38,8 @@ public class HttpCookieOAuth2AuthorizationRequestRepository
                 response,
                 OAUTH2_AUTHORIZATION_REQUEST_COOKIE_NAME,
                 CookieUtils.serialize(authorizationRequest),
-                COOKIE_EXPIRE_SECONDS
+                COOKIE_EXPIRE_SECONDS,
+                secureCookie
         );
     }
 

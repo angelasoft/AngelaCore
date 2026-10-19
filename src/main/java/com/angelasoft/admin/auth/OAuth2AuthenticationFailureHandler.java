@@ -24,6 +24,9 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
     @Value("${app.mobile.oauth-redirect-uri}")
     private String mobileRedirectUri;
 
+    @Value("${app.cookie.secure}")
+    private boolean secureCookie;
+
     @Override
     public void onAuthenticationFailure(
             HttpServletRequest request,
@@ -39,6 +42,7 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
         log.warn("[OAuth2] 모바일 인증 실패: {}", reason);
 
         ResponseCookie clear = ResponseCookie.from(OAuth2AuthenticationSuccessHandler.OAUTH_MODE_COOKIE, "")
+                .secure(secureCookie)
                 .path("/")
                 .maxAge(0)
                 .build();

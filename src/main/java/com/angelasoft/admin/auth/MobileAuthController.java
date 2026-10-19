@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +40,9 @@ public class MobileAuthController {
 
     private final UserRepository userRepository;
 
+    @Value("${app.cookie.secure}")
+    private boolean secureCookie;
+
     @GetMapping("/oauth/{provider}")
     public void startOAuth(@PathVariable String provider, HttpServletResponse response) throws IOException {
         String registrationId = provider == null ? "" : provider.toLowerCase();
@@ -48,6 +52,7 @@ public class MobileAuthController {
         }
 
         ResponseCookie mode = ResponseCookie.from(OAuth2AuthenticationSuccessHandler.OAUTH_MODE_COOKIE, "mobile")
+                .secure(secureCookie)
                 .path("/")
                 .sameSite("Lax")
                 .maxAge(300)
