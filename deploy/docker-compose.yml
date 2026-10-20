@@ -1,8 +1,8 @@
 # Lightsail 운영 구성: AngelaCore + Caddy(HTTPS, AngelaAdmin 정적 파일). DB는 Lightsail 관리형 PostgreSQL.
-# 사용법: deploy/.env 작성 후 `docker compose up -d --build`
+# GitHub Actions(.github/workflows/deploy.yml)가 app.jar 와 .env 를 함께 서버 ~/angela-core 로 보내고 실행한다.
 services:
   core:
-    build: ..
+    build: .
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: prod

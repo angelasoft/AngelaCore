@@ -39,4 +39,5 @@ out/
 ### Secrets / deploy ###
 src/main/resources/local-secrets.properties
 deploy/.env
+deploy/app.jar
 deploy/admin-dist/
