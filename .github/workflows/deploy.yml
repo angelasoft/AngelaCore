@@ -20,14 +20,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '21'
 
-      - uses: gradle/actions/setup-gradle@v4
+      # v6 부터 캐싱 컴포넌트에 Gradle 이용약관 동의가 필요해 v5 를 유지한다
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: Test and build
         run: ./gradlew --no-daemon test bootJar
@@ -44,11 +45,14 @@ jobs:
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
         run: |
           cp build/libs/app.jar deploy/app.jar
           # 작은따옴표로 감싸 compose 가 값 안의 $ 를 변수로 해석하지 않게 한다 (값에 ' 는 쓸 수 없음)
           for key in API_DOMAIN ADMIN_DOMAIN ACME_EMAIL DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET \
-                     KAKAO_CLIENT_ID KAKAO_CLIENT_SECRET NAVER_CLIENT_ID NAVER_CLIENT_SECRET ADMIN_EMAILS; do
+                     KAKAO_CLIENT_ID KAKAO_CLIENT_SECRET NAVER_CLIENT_ID NAVER_CLIENT_SECRET ADMIN_EMAILS \
+                     ADMIN_USERNAME ADMIN_PASSWORD_HASH; do
             printf "%s='%s'\n" "$key" "${!key}"
           done > deploy/.env
 
