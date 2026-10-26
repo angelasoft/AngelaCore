@@ -28,9 +28,11 @@ class ActivityControllerTests {
 	void returnsSeededActivitiesInReportOrderWithoutLogin() throws Exception {
 		mockMvc.perform(get("/app/activities"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.length()").value(38))
+				.andExpect(jsonPath("$.length()").value(40))
 				.andExpect(jsonPath("$[0].name").value("묵주기도"))
 				.andExpect(jsonPath("$[1].name").value("미사영성체"))
-				.andExpect(jsonPath("$[37].name").value("예비자돌봄"));
+				.andExpect(jsonPath("$[33].name").value("입교권면"))
+				.andExpect(jsonPath("$[34].name").value("행동단원모집"))
+				.andExpect(jsonPath("$[39].name").value("예비자돌봄"));
 	}
 }
