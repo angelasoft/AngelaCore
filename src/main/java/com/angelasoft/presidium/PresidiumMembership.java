@@ -3,6 +3,8 @@ package com.angelasoft.presidium;
 import com.angelasoft.admin.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -42,15 +44,47 @@ public class PresidiumMembership {
     @Column(nullable = false)
     private LocalDateTime joinedAt;
 
+    /** 기존 가입 행에 컬럼을 추가할 수 있도록 DB 에서는 null 을 허용하고, null 은 활동단원으로 본다. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private MemberGrade grade;
+
+    /** 4간부 직책. 일반 단원은 null. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private OfficerRole officerRole;
+
     @Builder
-    private PresidiumMembership(User user, Presidium presidium) {
+    private PresidiumMembership(User user, Presidium presidium, OfficerRole officerRole) {
         this.user = user;
         this.presidium = presidium;
         this.joinedAt = LocalDateTime.now();
+        this.grade = MemberGrade.ACTIVE;
+        this.officerRole = officerRole;
     }
 
-    void changePresidium(Presidium presidium) {
-        this.presidium = presidium;
-        this.joinedAt = LocalDateTime.now();
+    public MemberGrade getGrade() {
+        return grade == null ? MemberGrade.ACTIVE : grade;
+    }
+
+    /** DB 에 저장된 그대로의 등급 (기능 도입 전 데이터는 null). */
+    MemberGrade getRawGrade() {
+        return grade;
+    }
+
+    public boolean isOfficer() {
+        return officerRole != null;
+    }
+
+    public void changeGrade(MemberGrade grade) {
+        this.grade = grade;
+    }
+
+    public void appoint(OfficerRole role) {
+        this.officerRole = role;
+    }
+
+    public void dismissOfficer() {
+        this.officerRole = null;
     }
 }

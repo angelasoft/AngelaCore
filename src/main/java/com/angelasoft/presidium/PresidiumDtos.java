@@ -42,13 +42,28 @@ public final class PresidiumDtos {
     ) {
     }
 
-    public record MyPresidiumResponse(boolean joined, PresidiumResponse presidium) {
+    /** 내 가입 정보. grade·officerRole 은 앱에서 메뉴 노출(간부 전용 등)을 정하는 데 쓴다. */
+    public record MyPresidiumResponse(
+            boolean joined,
+            PresidiumResponse presidium,
+            MemberGrade grade,
+            String gradeLabel,
+            OfficerRole officerRole,
+            String officerLabel
+    ) {
         public static MyPresidiumResponse notJoined() {
-            return new MyPresidiumResponse(false, null);
+            return new MyPresidiumResponse(false, null, null, null, null, null);
         }
 
-        public static MyPresidiumResponse of(Presidium p) {
-            return new MyPresidiumResponse(true, PresidiumResponse.from(p));
+        public static MyPresidiumResponse of(PresidiumMembership m) {
+            OfficerRole role = m.getOfficerRole();
+            return new MyPresidiumResponse(
+                    true,
+                    PresidiumResponse.from(m.getPresidium()),
+                    m.getGrade(),
+                    m.getGrade().getLabel(),
+                    role,
+                    role == null ? null : role.getLabel());
         }
     }
 }

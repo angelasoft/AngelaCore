@@ -65,7 +65,7 @@ public class PresidiumController {
             return unauthorized();
         }
         return membershipRepository.findByUserIdWithDetails(user.getId())
-                .map(m -> ResponseEntity.ok(MyPresidiumResponse.of(m.getPresidium())))
+                .map(m -> ResponseEntity.ok(MyPresidiumResponse.of(m)))
                 .orElseGet(() -> ResponseEntity.ok(MyPresidiumResponse.notJoined()));
     }
 
@@ -86,18 +86,19 @@ public class PresidiumController {
                     .body(Map.of("message", "쁘레시디움을 찾을 수 없습니다."));
         }
 
-        PresidiumMembership membership = membershipRepository.findByUserId(user.getId())
-                .orElseGet(() -> PresidiumMembership.builder()
-                        .user(user)
-                        .presidium(presidium)
-                        .build());
-
-        if (!membership.getPresidium().getId().equals(presidiumId)) {
-            membership.changePresidium(presidium);
+        PresidiumMembership existing = membershipRepository.findByUserId(user.getId()).orElse(null);
+        if (existing != null) {
+            if (existing.getPresidium().getId().equals(presidiumId)) {
+                return ResponseEntity.ok(MyPresidiumResponse.of(existing));
+            }
+            return alreadyJoined();
         }
 
-        membershipRepository.save(membership);
-        return ResponseEntity.ok(MyPresidiumResponse.of(presidium));
+        PresidiumMembership membership = membershipRepository.save(PresidiumMembership.builder()
+                .user(user)
+                .presidium(presidium)
+                .build());
+        return ResponseEntity.ok(MyPresidiumResponse.of(membership));
     }
 
     @PostMapping
@@ -106,8 +107,12 @@ public class PresidiumController {
             @RequestBody CreatePresidiumRequest request,
             Authentication authentication
     ) {
-        if (currentUser(authentication) == null) {
+        User user = currentUser(authentication);
+        if (user == null) {
             return unauthorized();
+        }
+        if (membershipRepository.findByUserId(user.getId()).isPresent()) {
+            return alreadyJoined();
         }
 
         if (request.parishId() == null) {
@@ -142,17 +147,17 @@ public class PresidiumController {
                 .curia(curia)
                 .name(presidiumName)
                 .sessionNumber(session)
+                .createdBy(user)
                 .build());
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(new PresidiumResponse(
-                saved.getId(),
-                curia.getName(),
-                curia.getId(),
-                saved.getName(),
-                saved.getSessionNumber(),
-                parish.getId(),
-                parish.getName()
-        ));
+        // 만든 사람이 첫 단장으로 가입한다.
+        PresidiumMembership founder = membershipRepository.save(PresidiumMembership.builder()
+                .user(user)
+                .presidium(saved)
+                .officerRole(OfficerRole.PRESIDENT)
+                .build());
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(MyPresidiumResponse.of(founder));
     }
 
     private User currentUser(Authentication authentication) {
@@ -180,6 +185,11 @@ public class PresidiumController {
 
     private ResponseEntity<Map<String, String>> badRequest(String message) {
         return ResponseEntity.badRequest().body(Map.of("message", message));
+    }
+
+    private ResponseEntity<Map<String, String>> alreadyJoined() {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "message", "이미 가입한 쁘레시디움이 있습니다. 퇴단 승인 후 다른 쁘레시디움에 가입할 수 있습니다."));
     }
 
     private ResponseEntity<Map<String, String>> unauthorized() {

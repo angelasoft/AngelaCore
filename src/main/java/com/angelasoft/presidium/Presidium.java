@@ -1,5 +1,6 @@
 package com.angelasoft.presidium;
 
+import com.angelasoft.admin.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -40,10 +41,20 @@ public class Presidium {
     @Column(nullable = false)
     private int sessionNumber;
 
+    /** 쁘레시디움을 만든 사용자 (첫 단장). 기능 도입 전 생성분은 백필 전까지 null. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    private User createdBy;
+
     @Builder
-    private Presidium(Curia curia, String name, int sessionNumber) {
+    private Presidium(Curia curia, String name, int sessionNumber, User createdBy) {
         this.curia = curia;
         this.name = name;
         this.sessionNumber = sessionNumber;
+        this.createdBy = createdBy;
+    }
+
+    void assignCreator(User createdBy) {
+        this.createdBy = createdBy;
     }
 }

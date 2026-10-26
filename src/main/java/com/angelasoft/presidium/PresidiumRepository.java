@@ -5,8 +5,6 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 public interface PresidiumRepository extends JpaRepository<Presidium, Long> {
 
@@ -28,4 +26,6 @@ public interface PresidiumRepository extends JpaRepository<Presidium, Long> {
             ORDER BY c.name ASC, p.name ASC
             """)
     List<Presidium> findByParishIdOrderByCuriaAndName(@Param("parishId") Long parishId);
+
+    List<Presidium> findByCreatedByIsNull();
 }
