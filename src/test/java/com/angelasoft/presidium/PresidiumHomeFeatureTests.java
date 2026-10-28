@@ -82,6 +82,37 @@ class PresidiumHomeFeatureTests {
 	}
 
 	@Test
+	void officersManageNoticesAndListIsNewestFirstWithPaging() throws Exception {
+		call(post("/app/presidiums/me/notices"), member, notice("단원 공지")).andExpect(status().isForbidden());
+
+		for (int i = 1; i <= 4; i++) {
+			call(post("/app/presidiums/me/notices"), president, notice("공지" + i)).andExpect(status().isCreated());
+		}
+
+		JsonNode firstPage = json(call(get("/app/presidiums/me/notices?page=0&size=3"), member, null)
+				.andExpect(jsonPath("$.items", hasSize(3)))
+				.andExpect(jsonPath("$.items[0].title").value("공지4"))
+				.andExpect(jsonPath("$.items[2].title").value("공지2"))
+				.andExpect(jsonPath("$.hasNext").value(true)));
+		call(get("/app/presidiums/me/notices?page=1&size=3"), member, null)
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].title").value("공지1"))
+				.andExpect(jsonPath("$.hasNext").value(false));
+
+		long id = firstPage.at("/items/0/id").asLong();
+		call(put("/app/presidiums/me/notices/" + id), president, notice("수정된 공지"))
+				.andExpect(jsonPath("$.title").value("수정된 공지"));
+		call(put("/app/presidiums/me/notices/" + id), member, notice("x")).andExpect(status().isForbidden());
+		call(delete("/app/presidiums/me/notices/" + id), member, null).andExpect(status().isForbidden());
+
+		call(delete("/app/presidiums/me/notices/" + id), president, null).andExpect(status().isNoContent());
+		call(get("/app/presidiums/me/notices/" + id), member, null).andExpect(status().isNotFound());
+
+		call(post("/app/presidiums/me/notices"), president, "{\"title\": \" \", \"content\": \"내용\"}")
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void officersManageSchedulesAndUpcomingAndPastAreOrdered() throws Exception {
 		call(post("/app/presidiums/me/schedules"), member, schedule(TODAY.plusDays(1), "10:00", "본당"))
 				.andExpect(status().isForbidden());
@@ -156,6 +187,12 @@ class PresidiumHomeFeatureTests {
 		call(post("/app/presidiums/me/activity-reports"), member, "{\"items\": []}").andExpect(status().isBadRequest());
 		call(post("/app/presidiums/me/activity-reports"), member, "{\"items\": [{\"activityId\": 999999, \"count\": 1}]}")
 				.andExpect(status().isBadRequest());
+	}
+
+	private static String notice(String title) {
+		return """
+				{"title": "%s", "content": "공지 내용입니다."}
+				""".formatted(title);
 	}
 
 	private static String schedule(LocalDate date, String time, String place) {
