@@ -69,7 +69,7 @@ class PresidiumGovernanceTests {
 		long parishId = parishRepository.findAll().get(0).getId();
 		String suffix = UUID.randomUUID().toString().substring(0, 8);
 		JsonNode created = json(call(post("/app/presidiums"), founder, """
-				{"parishId": %d, "curiaName": "테스트Cu%s", "name": "테스트Pr%s", "sessionNumber": 1}
+				{"parishId": %d, "curiaName": "테스트Cu%s", "name": "테스트Pr%s"}
 				""".formatted(parishId, suffix, suffix))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.officerRole").value("PRESIDENT"))

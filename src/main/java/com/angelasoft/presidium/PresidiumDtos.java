@@ -10,7 +10,6 @@ public final class PresidiumDtos {
             String curiaName,
             Long curiaId,
             String name,
-            int sessionNumber,
             Long parishId,
             String parishName
     ) {
@@ -20,7 +19,6 @@ public final class PresidiumDtos {
                     p.getCuria().getName(),
                     p.getCuria().getId(),
                     p.getName(),
-                    p.getSessionNumber(),
                     p.getCuria().getParish().getId(),
                     p.getCuria().getParish().getName()
             );
@@ -37,8 +35,7 @@ public final class PresidiumDtos {
             Long parishId,
             Long curiaId,
             String curiaName,
-            String name,
-            Integer sessionNumber
+            String name
     ) {
     }
 

@@ -139,14 +139,9 @@ public class PresidiumController {
                     .body(Map.of("message", "같은 큐리아에 동일한 이름의 쁘레시디움이 이미 있습니다."));
         }
 
-        int session = request.sessionNumber() == null || request.sessionNumber() < 1
-                ? 1
-                : request.sessionNumber();
-
         Presidium saved = presidiumRepository.save(Presidium.builder()
                 .curia(curia)
                 .name(presidiumName)
-                .sessionNumber(session)
                 .createdBy(user)
                 .build());
 

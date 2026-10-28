@@ -37,20 +37,15 @@ public class Presidium {
     @Column(nullable = false, length = 100)
     private String name;
 
-    /** 회합 회차. 신규 생성 시 1부터 시작. */
-    @Column(nullable = false)
-    private int sessionNumber;
-
     /** 쁘레시디움을 만든 사용자 (첫 단장). 기능 도입 전 생성분은 백필 전까지 null. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
     private User createdBy;
 
     @Builder
-    private Presidium(Curia curia, String name, int sessionNumber, User createdBy) {
+    private Presidium(Curia curia, String name, User createdBy) {
         this.curia = curia;
         this.name = name;
-        this.sessionNumber = sessionNumber;
         this.createdBy = createdBy;
     }
 
