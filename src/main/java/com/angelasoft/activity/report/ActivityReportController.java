@@ -1,0 +1,59 @@
+package com.angelasoft.activity.report;
+
+import com.angelasoft.activity.report.ActivityReportDtos.MonthlyStats;
+import com.angelasoft.activity.report.ActivityReportDtos.SubmitRequest;
+import com.angelasoft.activity.report.ActivityReportDtos.SubmitResponse;
+import com.angelasoft.activity.report.ActivityReportDtos.YearlyTrend;
+import com.angelasoft.admin.security.AdminUserDetails;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 활동보고 제출·통계 API (인증 필요).
+ *
+ *   POST /app/presidiums/me/activity-reports                         {items: [{activityId, count}]}
+ *   GET  /app/presidiums/me/activity-stats?month=2026-10&userId=     한 달 활동별 합계 (+ 단원별 합계)
+ *   GET  /app/presidiums/me/activity-stats/yearly?year=2026&userId=  월별 합계
+ */
+@RestController
+@RequestMapping("/app/presidiums/me")
+@RequiredArgsConstructor
+public class ActivityReportController {
+
+    private final ActivityReportService reportService;
+
+    @PostMapping("/activity-reports")
+    @ResponseStatus(HttpStatus.CREATED)
+    public SubmitResponse submit(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @RequestBody SubmitRequest request
+    ) {
+        return reportService.submit(principal.getUserId(), request.items());
+    }
+
+    @GetMapping("/activity-stats")
+    public MonthlyStats monthly(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @RequestParam(required = false) String month,
+            @RequestParam(required = false) Long userId
+    ) {
+        return reportService.monthly(principal.getUserId(), month, userId);
+    }
+
+    @GetMapping("/activity-stats/yearly")
+    public YearlyTrend yearly(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Long userId
+    ) {
+        return reportService.yearly(principal.getUserId(), year, userId);
+    }
+}

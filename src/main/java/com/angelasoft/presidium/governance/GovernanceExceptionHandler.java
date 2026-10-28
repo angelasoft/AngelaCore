@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** 앱이 그대로 보여줄 수 있도록 {"message": ...} 형태로 오류를 돌려준다. */
-@RestControllerAdvice(assignableTypes = PresidiumGovernanceController.class)
+@RestControllerAdvice
 class GovernanceExceptionHandler {
 
     @ExceptionHandler(GovernanceException.class)
