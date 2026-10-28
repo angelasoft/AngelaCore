@@ -6,6 +6,7 @@ import com.angelasoft.activity.report.ActivityReportProjections.MemberTotal;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -14,6 +15,13 @@ import org.springframework.data.repository.query.Param;
  * "단원 ID 가 null 이면 전체"처럼 null 파라미터를 쓰면 PostgreSQL 이 타입을 추론하지 못하기 때문이다.
  */
 public interface ActivityReportItemRepository extends JpaRepository<ActivityReportItem, Long> {
+
+    @Query("SELECT i FROM ActivityReportItem i JOIN FETCH i.activity WHERE i.report.id = :reportId")
+    List<ActivityReportItem> findByReportId(@Param("reportId") Long reportId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("DELETE FROM ActivityReportItem i WHERE i.report.id = :reportId")
+    void deleteByReportId(@Param("reportId") Long reportId);
 
     @Query("""
             SELECT a.id AS activityId, a.name AS name, SUM(i.quantity) AS total

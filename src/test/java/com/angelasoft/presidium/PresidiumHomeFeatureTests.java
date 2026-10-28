@@ -1,5 +1,7 @@
 package com.angelasoft.presidium;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -8,6 +10,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.angelasoft.activity.Activity;
+import com.angelasoft.activity.ActivityRepository;
+import com.angelasoft.activity.report.ActivityReport;
+import com.angelasoft.activity.report.ActivityReportItem;
+import com.angelasoft.activity.report.ActivityReportItemRepository;
+import com.angelasoft.activity.report.ActivityReportRepository;
+import com.angelasoft.activity.report.ActivityReportService;
+import com.angelasoft.activity.report.ActivityReportWeekBackfill;
 import com.angelasoft.admin.security.JwtProvider;
 import com.angelasoft.admin.user.AuthProvider;
 import com.angelasoft.admin.user.User;
@@ -31,7 +41,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
-/** 쁘레시디움 홈 카드 기능: 봉사 일정, 활동보고 제출·통계. */
+/** 쁘레시디움 홈 카드 기능: 공지, 봉사 일정, 주간 활동보고 제출·통계. */
 @SpringBootTest(classes = AngelaCoreApplication.class, properties = {
 		"KAKAO_CLIENT_ID=test",
 		"KAKAO_CLIENT_SECRET=test",
@@ -58,6 +68,21 @@ class PresidiumHomeFeatureTests {
 
 	@Autowired
 	private JwtProvider jwtProvider;
+
+	@Autowired
+	private ActivityRepository activityRepository;
+
+	@Autowired
+	private PresidiumMembershipRepository membershipRepository;
+
+	@Autowired
+	private ActivityReportRepository reportRepository;
+
+	@Autowired
+	private ActivityReportItemRepository itemRepository;
+
+	@Autowired
+	private ActivityReportWeekBackfill weekBackfill;
 
 	private String president;
 	private String member;
@@ -184,9 +209,97 @@ class PresidiumHomeFeatureTests {
 				.andExpect(jsonPath("$.months", hasSize(12)))
 				.andExpect(jsonPath("$.months[" + (TODAY.getMonthValue() - 1) + "].count").value(10));
 
-		call(post("/app/presidiums/me/activity-reports"), member, "{\"items\": []}").andExpect(status().isBadRequest());
 		call(post("/app/presidiums/me/activity-reports"), member, "{\"items\": [{\"activityId\": 999999, \"count\": 1}]}")
 				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void resubmittingInSameWeekReplacesReportWithoutDoubleCounting() throws Exception {
+		JsonNode activities = json(mockMvc.perform(get("/app/activities")));
+		long rosary = activities.get(0).get("id").asLong();
+		long mass = activities.get(1).get("id").asLong();
+		LocalDate weekStart = ActivityReportService.weekStartOf(TODAY);
+
+		call(get("/app/presidiums/me/activity-reports/current-week"), member, null)
+				.andExpect(jsonPath("$.weekStart").value(weekStart.toString()))
+				.andExpect(jsonPath("$.weekEnd").value(weekStart.plusDays(6).toString()))
+				.andExpect(jsonPath("$.updatedAt").doesNotExist())
+				.andExpect(jsonPath("$.items", hasSize(0)));
+		call(post("/app/presidiums/me/activity-reports"), member, "{\"items\": []}").andExpect(status().isBadRequest());
+
+		long firstId = json(call(post("/app/presidiums/me/activity-reports"), member, """
+				{"items": [{"activityId": %d, "count": 3}]}
+				""".formatted(rosary)).andExpect(status().isCreated())).get("id").asLong();
+
+		call(get("/app/presidiums/me/activity-reports/current-week"), member, null)
+				.andExpect(jsonPath("$.updatedAt").exists())
+				.andExpect(jsonPath("$.totalCount").value(3))
+				.andExpect(jsonPath("$.items[0].activityId").value(rosary))
+				.andExpect(jsonPath("$.items[0].count").value(3));
+
+		call(post("/app/presidiums/me/activity-reports"), member, """
+				{"items": [{"activityId": %d, "count": 5}, {"activityId": %d, "count": 2}]}
+				""".formatted(rosary, mass))
+				.andExpect(jsonPath("$.id").value(firstId))
+				.andExpect(jsonPath("$.totalCount").value(7));
+		call(post("/app/presidiums/me/activity-reports"), member, """
+				{"items": [{"activityId": %d, "count": 5}, {"activityId": %d, "count": 2}]}
+				""".formatted(rosary, mass))
+				.andExpect(jsonPath("$.id").value(firstId));
+
+		String month = YearMonth.from(TODAY).toString();
+		call(get("/app/presidiums/me/activity-stats?month=" + month + "&userId=" + memberId), president, null)
+				.andExpect(jsonPath("$.totalCount").value(7))
+				.andExpect(jsonPath("$.activities[0].activityId").value(rosary))
+				.andExpect(jsonPath("$.activities[0].count").value(5))
+				.andExpect(jsonPath("$.activities[1].count").value(2));
+		call(get("/app/presidiums/me/activity-stats/yearly?year=" + TODAY.getYear() + "&userId=" + memberId), member, null)
+				.andExpect(jsonPath("$.months[" + (TODAY.getMonthValue() - 1) + "].count").value(7));
+
+		call(post("/app/presidiums/me/activity-reports"), member, """
+				{"items": [{"activityId": %d, "count": 0}]}
+				""".formatted(rosary))
+				.andExpect(jsonPath("$.id").doesNotExist())
+				.andExpect(jsonPath("$.totalCount").value(0));
+		call(get("/app/presidiums/me/activity-reports/current-week"), member, null)
+				.andExpect(jsonPath("$.items", hasSize(0)));
+		call(get("/app/presidiums/me/activity-stats?month=" + month + "&userId=" + memberId), president, null)
+				.andExpect(jsonPath("$.totalCount").value(0));
+	}
+
+	@Test
+	void backfillMergesLegacyReportsOfSameWeek() throws Exception {
+		JsonNode activities = json(mockMvc.perform(get("/app/activities")));
+		Activity rosary = activityRepository.findById(activities.get(0).get("id").asLong()).orElseThrow();
+		Activity mass = activityRepository.findById(activities.get(1).get("id").asLong()).orElseThrow();
+		PresidiumMembership membership = membershipRepository.findByUserIdWithDetails(memberId).orElseThrow();
+		LocalDate weekStart = ActivityReportService.weekStartOf(TODAY).minusWeeks(3);
+
+		legacyReport(membership, weekStart, rosary, 2);
+		legacyReport(membership, weekStart.plusDays(2), rosary, 3);
+		legacyReport(membership, weekStart.plusDays(3), mass, 1);
+		legacyReport(membership, weekStart.plusDays(7), mass, 4);
+
+		weekBackfill.run(null);
+
+		ActivityReport merged = reportRepository.findWeekly(membership.getPresidium().getId(), memberId, weekStart)
+				.orElseThrow();
+		assertThat(merged.getReportDate()).isEqualTo(weekStart);
+		assertThat(itemRepository.findByReportId(merged.getId()))
+				.extracting(i -> i.getActivity().getId(), ActivityReportItem::getQuantity)
+				.containsExactlyInAnyOrder(tuple(rosary.getId(), 5), tuple(mass.getId(), 1));
+		assertThat(reportRepository.findWeekly(membership.getPresidium().getId(), memberId, weekStart.plusDays(7)))
+				.isPresent();
+		assertThat(reportRepository.findWithoutWeekStart()).isEmpty();
+	}
+
+	private void legacyReport(PresidiumMembership membership, LocalDate date, Activity activity, int count) {
+		ActivityReport report = reportRepository.save(ActivityReport.builder()
+				.presidium(membership.getPresidium())
+				.member(membership.getUser())
+				.reportDate(date)
+				.build());
+		itemRepository.save(ActivityReportItem.builder().report(report).activity(activity).quantity(count).build());
 	}
 
 	private static String notice(String title) {

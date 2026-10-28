@@ -1,6 +1,7 @@
 package com.angelasoft.activity.report;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 public final class ActivityReportDtos {
@@ -14,7 +15,21 @@ public final class ActivityReportDtos {
     public record SubmitRequest(List<SubmitItem> items) {
     }
 
-    public record SubmitResponse(Long id, LocalDate reportDate, int totalCount) {
+    /** 제출 결과. 보고한 횟수를 모두 0 으로 내려 이번 주 보고를 지웠으면 id·reportDate 는 null. */
+    public record SubmitResponse(Long id, LocalDate reportDate, LocalDate weekStart, int totalCount) {
+    }
+
+    public record WeeklyItem(Long activityId, int count) {
+    }
+
+    /** 이번 주(weekStart 월요일 ~ weekEnd 일요일) 내 보고. 아직 보고하지 않았으면 updatedAt 은 null, items 는 빈 목록. */
+    public record WeeklyReport(
+            LocalDate weekStart,
+            LocalDate weekEnd,
+            LocalDateTime updatedAt,
+            int totalCount,
+            List<WeeklyItem> items
+    ) {
     }
 
     public record ActivityCount(Long activityId, String name, long count) {
