@@ -256,6 +256,15 @@ class PresidiumHomeFeatureTests {
 		call(get("/app/presidiums/me/activity-stats/yearly?year=" + TODAY.getYear() + "&userId=" + memberId), member, null)
 				.andExpect(jsonPath("$.months[" + (TODAY.getMonthValue() - 1) + "].count").value(7));
 
+		call(get("/app/presidiums/me/activity-stats?week=" + weekStart.plusDays(5)), member, null)
+				.andExpect(jsonPath("$.weekStart").value(weekStart.toString()))
+				.andExpect(jsonPath("$.weekEnd").value(weekStart.plusDays(6).toString()))
+				.andExpect(jsonPath("$.totalCount").value(7))
+				.andExpect(jsonPath("$.members[0].userId").value(memberId));
+		call(get("/app/presidiums/me/activity-stats?week=" + weekStart.minusWeeks(1) + "&userId=" + memberId), member, null)
+				.andExpect(jsonPath("$.totalCount").value(0));
+		call(get("/app/presidiums/me/activity-stats?week=2026-13-01"), member, null).andExpect(status().isBadRequest());
+
 		call(post("/app/presidiums/me/activity-reports"), member, """
 				{"items": [{"activityId": %d, "count": 0}]}
 				""".formatted(rosary))

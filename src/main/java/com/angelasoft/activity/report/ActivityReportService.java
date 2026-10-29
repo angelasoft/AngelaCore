@@ -143,13 +143,18 @@ public class ActivityReportService {
         return new SubmitResponse(report.getId(), report.getReportDate(), weekStart, total);
     }
 
+    /**
+     * 한 달 또는 한 주(week 가 있으면 그 날짜가 속한 월~일)의 통계.
+     * 보고 날짜는 늘 그 보고의 주 안에 있으므로 주 통계는 보고 날짜 범위로 구한다.
+     */
     @Transactional(readOnly = true)
-    public MonthlyStats monthly(Long userId, String month, Long memberId) {
+    public MonthlyStats monthly(Long userId, String month, String week, Long memberId) {
         PresidiumMembership me = membershipLookup.require(userId);
         Long presidiumId = me.getPresidium().getId();
-        YearMonth ym = parseMonth(month);
-        LocalDate from = ym.atDay(1);
-        LocalDate to = ym.atEndOfMonth();
+        LocalDate weekStart = week == null || week.isBlank() ? null : weekStartOf(parseDate(week));
+        YearMonth ym = weekStart != null ? YearMonth.from(weekStart) : parseMonth(month);
+        LocalDate from = weekStart != null ? weekStart : ym.atDay(1);
+        LocalDate to = weekStart != null ? weekStart.plusDays(6) : ym.atEndOfMonth();
 
         List<ActivityCount> activities = (memberId == null
                 ? itemRepository.sumByActivity(presidiumId, from, to)
@@ -163,7 +168,16 @@ public class ActivityReportService {
                         .map(t -> new MemberCount(t.getUserId(), displayName(t.getName(), t.getBaptismalName()), t.getTotal()))
                         .toList();
         long total = activities.stream().mapToLong(ActivityCount::count).sum();
-        return new MonthlyStats(ym.toString(), memberId, total, activities, members);
+        return new MonthlyStats(ym.toString(), weekStart, weekStart == null ? null : to,
+                memberId, total, activities, members);
+    }
+
+    private static LocalDate parseDate(String date) {
+        try {
+            return LocalDate.parse(date.trim());
+        } catch (DateTimeParseException e) {
+            throw GovernanceException.badRequest("week 는 2026-10-26 형식으로 보내 주세요.");
+        }
     }
 
     @Transactional(readOnly = true)

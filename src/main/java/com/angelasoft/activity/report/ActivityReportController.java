@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   POST /app/presidiums/me/activity-reports                         {items: [{activityId, count}]} 이번 주 보고를 덮어씀
  *   GET  /app/presidiums/me/activity-reports/current-week            이번 주(월~일) 내 보고
  *   GET  /app/presidiums/me/activity-stats?month=2026-10&userId=     한 달 활동별 합계 (+ 단원별 합계)
+ *   GET  /app/presidiums/me/activity-stats?week=2026-10-26&userId=   그 날짜가 속한 주(월~일) 합계
  *   GET  /app/presidiums/me/activity-stats/yearly?year=2026&userId=  월별 합계
  */
 @RestController
@@ -50,9 +51,10 @@ public class ActivityReportController {
     public MonthlyStats monthly(
             @AuthenticationPrincipal AdminUserDetails principal,
             @RequestParam(required = false) String month,
+            @RequestParam(required = false) String week,
             @RequestParam(required = false) Long userId
     ) {
-        return reportService.monthly(principal.getUserId(), month, userId);
+        return reportService.monthly(principal.getUserId(), month, week, userId);
     }
 
     @GetMapping("/activity-stats/yearly")

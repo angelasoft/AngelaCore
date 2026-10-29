@@ -39,11 +39,13 @@ public final class ActivityReportDtos {
     }
 
     /**
-     * 한 달 통계. userId 가 있으면 그 단원 한 명의 통계이고 members 는 비어 있다.
-     * month 는 "2026-10" 형식.
+     * 한 달 또는 한 주 통계. userId 가 있으면 그 단원 한 명의 통계이고 members 는 비어 있다.
+     * month 는 "2026-10" 형식(주 통계면 그 주 월요일이 속한 달), 주 통계일 때만 weekStart(월)·weekEnd(일)가 있다.
      */
     public record MonthlyStats(
             String month,
+            LocalDate weekStart,
+            LocalDate weekEnd,
             Long userId,
             long totalCount,
             List<ActivityCount> activities,
