@@ -1,8 +1,12 @@
 package com.angelasoft.notification;
 
+import com.angelasoft.notification.push.PushRequested;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,12 +15,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    /** 받는 사람마다 알림을 한 건씩 저장한다. 호출한 트랜잭션에 함께 묶인다. */
+    /**
+     * 받는 사람마다 알림을 한 건씩 저장한다. 호출한 트랜잭션에 함께 묶이고,
+     * 커밋되면 같은 내용을 받는 사람들의 기기로 푸시한다.
+     */
     @Transactional
     public void notify(Collection<Long> recipientUserIds, NotificationType type, String title, String message, Long targetId) {
-        List<Notification> notifications = recipientUserIds.stream()
-                .distinct()
+        List<Long> userIds = recipientUserIds.stream().distinct().toList();
+        List<Notification> notifications = userIds.stream()
                 .map(userId -> Notification.builder()
                         .recipientUserId(userId)
                         .type(type)
@@ -26,6 +34,13 @@ public class NotificationService {
                         .build())
                 .toList();
         notificationRepository.saveAll(notifications);
+
+        Map<String, String> data = new HashMap<>();
+        data.put("type", type.name());
+        if (targetId != null) {
+            data.put("targetId", targetId.toString());
+        }
+        eventPublisher.publishEvent(new PushRequested(userIds, title, message, data));
     }
 
     @Transactional(readOnly = true)

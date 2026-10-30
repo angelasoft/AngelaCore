@@ -47,12 +47,15 @@ jobs:
           ADMIN_EMAILS: ${{ secrets.ADMIN_EMAILS }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           cp build/libs/app.jar deploy/app.jar
+          # 서비스 계정 JSON 은 줄바꿈과 따옴표가 있어 base64 한 줄로 넘긴다
+          FIREBASE_SERVICE_ACCOUNT_BASE64=$(printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | base64 -w0)
           # 작은따옴표로 감싸 compose 가 값 안의 $ 를 변수로 해석하지 않게 한다 (값에 ' 는 쓸 수 없음)
           for key in API_DOMAIN ADMIN_DOMAIN ACME_EMAIL DB_URL DB_USERNAME DB_PASSWORD JWT_SECRET \
                      KAKAO_CLIENT_ID KAKAO_CLIENT_SECRET NAVER_CLIENT_ID NAVER_CLIENT_SECRET ADMIN_EMAILS \
-                     ADMIN_USERNAME ADMIN_PASSWORD_HASH; do
+                     ADMIN_USERNAME ADMIN_PASSWORD_HASH FIREBASE_SERVICE_ACCOUNT_BASE64; do
             printf "%s='%s'\n" "$key" "${!key}"
           done > deploy/.env
 
