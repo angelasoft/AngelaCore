@@ -1,6 +1,7 @@
 package com.angelasoft.notification.push;
 
 import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.firebase.FirebaseApp;
 import com.google.firebase.FirebaseOptions;
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -27,11 +28,13 @@ public class FirebaseConfig {
             return PushGateway.disabled();
         }
         byte[] json = Base64.getDecoder().decode(serviceAccountBase64.trim());
-        FirebaseOptions options = FirebaseOptions.builder()
-                .setCredentials(GoogleCredentials.fromStream(new ByteArrayInputStream(json)))
-                .build();
+        GoogleCredentials credentials = GoogleCredentials.fromStream(new ByteArrayInputStream(json));
+        FirebaseOptions.Builder options = FirebaseOptions.builder().setCredentials(credentials);
+        if (credentials instanceof ServiceAccountCredentials serviceAccount) {
+            options.setProjectId(serviceAccount.getProjectId());
+        }
         FirebaseApp app = FirebaseApp.getApps().isEmpty()
-                ? FirebaseApp.initializeApp(options)
+                ? FirebaseApp.initializeApp(options.build())
                 : FirebaseApp.getInstance();
         log.info("[Push] Firebase 프로젝트 {} 로 푸시 알림을 보냅니다.", app.getOptions().getProjectId());
         return PushGateway.of(FirebaseMessaging.getInstance(app));
