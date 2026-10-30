@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -39,7 +40,11 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
         }
 
         String reason = exception.getMessage() == null ? "OAuth authentication failed" : exception.getMessage();
-        log.warn("[OAuth2] 모바일 인증 실패: {}", reason);
+        String errorCode = exception instanceof OAuth2AuthenticationException oauth
+                && CustomOAuth2UserService.PROVIDER_MISMATCH.equals(oauth.getError().getErrorCode())
+                ? CustomOAuth2UserService.PROVIDER_MISMATCH
+                : "oauth_failed";
+        log.warn("[OAuth2] 모바일 인증 실패({}): {}", errorCode, reason);
 
         ResponseCookie clear = ResponseCookie.from(OAuth2AuthenticationSuccessHandler.OAUTH_MODE_COOKIE, "")
                 .secure(secureCookie)
@@ -49,7 +54,7 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
         response.addHeader(HttpHeaders.SET_COOKIE, clear.toString());
 
         String redirect = UriComponentsBuilder.fromUriString(mobileRedirectUri)
-                .queryParam("error", "oauth_failed")
+                .queryParam("error", errorCode)
                 .queryParam("error_description", reason)
                 .build()
                 .encode()

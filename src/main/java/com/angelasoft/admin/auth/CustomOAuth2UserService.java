@@ -12,12 +12,16 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
+
+    /** 앱이 이 오류 코드를 받으면 error_description 을 그대로 보여 준다. */
+    static final String PROVIDER_MISMATCH = "provider_mismatch";
 
     private final UserRepository userRepository;
 
@@ -31,26 +35,48 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         AuthProvider provider = AuthProvider.valueOf(registrationId);
         OAuth2UserInfo userInfo = OAuth2UserInfoFactory.create(provider, oAuth2User.getAttributes());
 
-        if (userInfo.getEmail() == null || "null".equals(userInfo.getEmail())) {
+        return new UserPrincipal(resolveUser(provider, userInfo), oAuth2User.getAttributes());
+    }
+
+    /**
+     * 처음 가입할 때 쓴 소셜 계정(인증 수단 + 그 서비스의 회원 번호)으로만 로그인할 수 있다.
+     * 같은 이메일이 다른 소셜 계정으로 가입되어 있으면 로그인을 거부한다.
+     * 단, 앱 회원가입을 마치기 전인 계정은 새로 인증한 소셜 계정으로 바꿔 준다.
+     */
+    User resolveUser(AuthProvider provider, OAuth2UserInfo userInfo) {
+        String email = userInfo.getEmail();
+        if (email == null || "null".equals(email)) {
             throw new OAuth2AuthenticationException("OAuth2 provider did not return email.");
         }
-        UserRole role = resolveRole(userInfo.getEmail());
+        String providerId = userInfo.getProviderId();
+        UserRole role = resolveRole(email);
 
-        User user = userRepository.findByEmail(userInfo.getEmail())
-                .map(existing -> {
-                    existing.updateProfile(userInfo.getProviderId(), role);
+        User user = userRepository.findByProviderAndProviderId(provider, providerId)
+                .or(() -> userRepository.findByEmail(email).map(existing -> {
+                    if (existing.isAppRegistered()) {
+                        throw providerMismatch(existing, provider);
+                    }
+                    existing.relinkBeforeRegistration(provider, providerId);
                     return existing;
-                })
+                }))
                 .orElseGet(() -> User.builder()
-                        .email(userInfo.getEmail())
+                        .email(email)
                         .name("")
                         .provider(provider)
-                        .providerId(userInfo.getProviderId())
+                        .providerId(providerId)
                         .role(role)
                         .build());
+        user.updateRole(role);
+        return userRepository.save(user);
+    }
 
-        User saved = userRepository.save(user);
-        return new UserPrincipal(saved, oAuth2User.getAttributes());
+    private static OAuth2AuthenticationException providerMismatch(User existing, AuthProvider attempted) {
+        String message = existing.getProvider() == attempted
+                ? "이 이메일은 다른 " + attempted.getLabel() + " 계정으로 이미 가입되어 있습니다.\n"
+                        + "처음 가입한 " + attempted.getLabel() + " 계정으로 로그인해 주세요."
+                : "이미 " + existing.getProvider().getLabel() + " 계정으로 가입되어 있습니다.\n"
+                        + existing.getProvider().getLabel() + "로 로그인해 주세요.";
+        return new OAuth2AuthenticationException(new OAuth2Error(PROVIDER_MISMATCH, message, null), message);
     }
 
     private UserRole resolveRole(String email) {

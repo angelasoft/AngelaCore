@@ -73,10 +73,19 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
-    /** 소셜 재로그인 시 providerId·role만 갱신한다. 이름은 앱 회원가입 폼에서만 설정. */
-    public void updateProfile(String providerId, UserRole role) {
-        this.providerId = providerId;
+    /** 소셜 재로그인 시 role 만 갱신한다. 이름은 앱 회원가입 폼에서만 설정. */
+    public void updateRole(UserRole role) {
         this.role = role;
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    /** 앱 회원가입을 마치기 전이면 다른 소셜 계정으로 다시 인증해 인증 수단을 바꿀 수 있다. */
+    public void relinkBeforeRegistration(AuthProvider provider, String providerId) {
+        if (appRegistered) {
+            throw new IllegalStateException("가입을 마친 계정의 인증 수단은 바꿀 수 없습니다.");
+        }
+        this.provider = provider;
+        this.providerId = providerId;
         this.updatedAt = LocalDateTime.now();
     }
 
