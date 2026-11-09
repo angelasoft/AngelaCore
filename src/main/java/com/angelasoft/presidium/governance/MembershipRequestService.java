@@ -61,6 +61,9 @@ public class MembershipRequestService {
         if (type == MembershipRequestType.AUXILIARY && me.getGrade() == MemberGrade.AUXILIARY) {
             throw GovernanceException.conflict("이미 협조단원입니다.");
         }
+        if (type == MembershipRequestType.ACTIVE && me.getGrade() == MemberGrade.ACTIVE) {
+            throw GovernanceException.conflict("이미 활동단원입니다.");
+        }
         if (requestRepository.existsByRequesterIdAndPresidiumIdAndStatus(
                 userId, me.getPresidium().getId(), MembershipRequestStatus.PENDING)) {
             throw GovernanceException.conflict("처리 중인 신청이 있습니다. 승인 결과를 기다려 주세요.");
@@ -160,6 +163,7 @@ public class MembershipRequestService {
                 requester.dismissOfficer();
                 requester.changeGrade(MemberGrade.AUXILIARY);
             }
+            case ACTIVE -> requester.changeGrade(MemberGrade.ACTIVE);
             case WITHDRAWAL -> {
                 electionService.cancelOpenElectionsForCandidate(request.getPresidium().getId(), requesterId);
                 membershipRepository.delete(requester);
@@ -172,9 +176,11 @@ public class MembershipRequestService {
         request.finish(result);
         String label = request.getType().getLabel();
         String message = switch (result) {
-            case APPROVED -> request.getType() == MembershipRequestType.WITHDRAWAL
-                    ? "퇴단 신청이 승인되어 쁘레시디움에서 퇴단 처리되었습니다."
-                    : "협조단원 신청이 승인되어 협조단원으로 변경되었습니다.";
+            case APPROVED -> switch (request.getType()) {
+                case WITHDRAWAL -> "퇴단 신청이 승인되어 쁘레시디움에서 퇴단 처리되었습니다.";
+                case AUXILIARY -> "협조단원 신청이 승인되어 협조단원으로 변경되었습니다.";
+                case ACTIVE -> "활동단원 신청이 승인되어 활동단원으로 변경되었습니다.";
+            };
             case REJECTED -> label + "이 반려되었습니다.";
             case CANCELED -> label + "이 취소되었습니다.";
             case PENDING -> throw new IllegalArgumentException("PENDING is not a result");

@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   POST /app/presidiums/me/elections                   {position, candidateUserId}  4간부만
  *   POST /app/presidiums/me/elections/{id}/votes        {approve}
  *   GET  /app/presidiums/me/requests
- *   POST /app/presidiums/me/requests                    {type: AUXILIARY | WITHDRAWAL}
+ *   POST /app/presidiums/me/requests                    {type: AUXILIARY | ACTIVE | WITHDRAWAL}
  *   POST /app/presidiums/me/requests/{id}/decision      {approve}  4간부만
  *   POST /app/presidiums/me/requests/{id}/cancel
  */

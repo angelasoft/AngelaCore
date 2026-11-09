@@ -139,6 +139,19 @@ class PresidiumGovernanceTests {
 				.andExpect(jsonPath("$.status").value("APPROVED"));
 		call(get("/app/presidiums/me"), member3, null).andExpect(jsonPath("$.grade").value("AUXILIARY"));
 
+		// 활동단원 신청: 협조단원만 할 수 있고, 같은 과반 승인으로 활동단원이 된다.
+		call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"AUXILIARY\"}").andExpect(status().isConflict());
+		call(post("/app/presidiums/me/requests"), founder, "{\"type\": \"ACTIVE\"}").andExpect(status().isBadRequest());
+		long activeId = json(call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"ACTIVE\"}")
+				.andExpect(status().isCreated())).get("id").asLong();
+		call(post("/app/presidiums/me/requests/" + activeId + "/decision"), founder, "{\"approve\": true}");
+		call(post("/app/presidiums/me/requests/" + activeId + "/decision"), member2, "{\"approve\": true}")
+				.andExpect(jsonPath("$.status").value("APPROVED"));
+		call(get("/app/presidiums/me"), member3, null).andExpect(jsonPath("$.grade").value("ACTIVE"));
+		call(get("/app/notifications"), member3, null)
+				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("활동단원으로 변경")));
+		call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"ACTIVE\"}").andExpect(status().isConflict());
+
 		// 간부는 후임 임명 전에는 신청할 수 없다.
 		call(post("/app/presidiums/me/requests"), member2, "{\"type\": \"WITHDRAWAL\"}").andExpect(status().isBadRequest());
 
