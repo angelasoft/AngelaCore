@@ -2,6 +2,7 @@ package com.angelasoft.presidium.governance;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,8 @@ import com.angelasoft.core.AngelaCoreApplication;
 import com.angelasoft.region.ParishRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +38,8 @@ import org.springframework.test.web.servlet.ResultActions;
 @AutoConfigureMockMvc
 class PresidiumGovernanceTests {
 
+	private static final ZoneId KOREA = ZoneId.of("Asia/Seoul");
+
 	@Autowired
 	private MockMvc mockMvc;
 
@@ -53,6 +58,10 @@ class PresidiumGovernanceTests {
 	@Autowired
 	private ActivityDataSeeder activitySeeder;
 
+	@Autowired
+	private OfficerTermService termService;
+
+	private Long founderId;
 	private String founder;
 	private String member2;
 	private String member3;
@@ -67,6 +76,7 @@ class PresidiumGovernanceTests {
 		founder = token(u1);
 		member2 = token(u2);
 		member3 = token(u3);
+		founderId = u1.getId();
 		member2Id = u2.getId();
 		member3Id = u3.getId();
 
@@ -112,17 +122,79 @@ class PresidiumGovernanceTests {
 		call(post("/app/presidiums/me/elections/" + electionId + "/votes"), founder, "{\"approve\": true}")
 				.andExpect(jsonPath("$.status").value("OPEN"))
 				.andExpect(jsonPath("$.yesCount").value(1));
+		// 과반 찬성이면 당선. 임명 전까지는 간부가 아니다.
 		call(post("/app/presidiums/me/elections/" + electionId + "/votes"), member3, "{\"approve\": true}")
-				.andExpect(jsonPath("$.status").value("APPOINTED"));
+				.andExpect(jsonPath("$.status").value("ELECTED"))
+				.andExpect(jsonPath("$.canAppoint").value(false));
 		call(post("/app/presidiums/me/elections/" + electionId + "/votes"), member2, "{\"approve\": true}")
+				.andExpect(status().isConflict());
+		call(get("/app/presidiums/me"), member2, null).andExpect(jsonPath("$.officerRole").doesNotExist());
+		call(get("/app/notifications"), member2, null)
+				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("부단장으로 당선")));
+		// 당선 중에는 같은 직책 투표를 새로 시작할 수 없다.
+		call(post("/app/presidiums/me/elections"), founder, """
+				{"position": "VICE_PRESIDENT", "candidateUserId": %d}
+				""".formatted(member3Id)).andExpect(status().isConflict());
+
+		// 4간부도 당선자도 아니면 임명할 수 없고, 임명일은 미래일 수 없다.
+		String term = "{\"appointedDate\": \"2024-03-01\", \"termYears\": 3, \"termMonths\": 0}";
+		call(post("/app/presidiums/me/elections/" + electionId + "/appoint"), member3, term)
+				.andExpect(status().isForbidden());
+		call(post("/app/presidiums/me/elections/" + electionId + "/appoint"), member2,
+				"{\"appointedDate\": \"%s\", \"termYears\": 3}".formatted(LocalDate.now(KOREA).plusDays(3)))
+				.andExpect(status().isBadRequest());
+
+		// 당선자 본인이 지난 날짜로 임명할 수 있다.
+		call(post("/app/presidiums/me/elections/" + electionId + "/appoint"), member2, term)
+				.andExpect(jsonPath("$.status").value("APPOINTED"))
+				.andExpect(jsonPath("$.appointedDate").value("2024-03-01"))
+				.andExpect(jsonPath("$.termLabel").value("3년 0개월"));
+		call(post("/app/presidiums/me/elections/" + electionId + "/appoint"), member2, term)
 				.andExpect(status().isConflict());
 
 		call(get("/app/presidiums/me"), member2, null)
 				.andExpect(jsonPath("$.officerRole").value("VICE_PRESIDENT"))
 				.andExpect(jsonPath("$.officerLabel").value("부단장"));
-		call(get("/app/notifications"), member2, null)
+		call(get("/app/presidiums/me/members"), member3, null)
+				.andExpect(jsonPath("$[?(@.officerRole == 'VICE_PRESIDENT')].officerTermEndDate").value("2027-02-28"))
+				.andExpect(jsonPath("$[?(@.officerRole == 'VICE_PRESIDENT')].officerTermLabel").value("3년 0개월"));
+		call(get("/app/notifications"), member3, null)
 				.andExpect(jsonPath("$[0].type").value("ELECTION_RESULT"))
 				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("부단장으로 임명")));
+	}
+
+	@Test
+	void officersEnterTermsAndMembersAreToldWhenTermEndsWithinAMonth() throws Exception {
+		LocalDate today = LocalDate.now(KOREA);
+
+		// 4간부만 입력할 수 있다.
+		call(put("/app/presidiums/me/officers/" + founderId + "/term"), member2,
+				"{\"appointedDate\": \"2020-01-01\", \"termYears\": 3}").andExpect(status().isForbidden());
+		call(put("/app/presidiums/me/officers/" + member3Id + "/term"), founder,
+				"{\"appointedDate\": \"2020-01-01\", \"termYears\": 3}").andExpect(status().isNotFound());
+		call(put("/app/presidiums/me/officers/" + founderId + "/term"), founder,
+				"{\"appointedDate\": \"2020-01-01\", \"termYears\": 0, \"termMonths\": 0}").andExpect(status().isBadRequest());
+
+		// 임기가 많이 남았으면 알림이 없다.
+		call(put("/app/presidiums/me/officers/" + founderId + "/term"), founder,
+				"{\"appointedDate\": \"%s\", \"termYears\": 3, \"termMonths\": 0}".formatted(today.minusMonths(2)))
+				.andExpect(jsonPath("$.officerTermLabel").value("3년 0개월"));
+		termService.notifyEndingTerms();
+		call(get("/app/notifications"), member3, null)
+				.andExpect(jsonPath("$[?(@.type == 'OFFICER_TERM_ENDING')]").isEmpty());
+
+		// 임기 마지막 날까지 한 달이 안 남으면 단원 전체에게 한 번 알린다.
+		LocalDate appointed = today.minusYears(2).minusMonths(11).minusDays(20);
+		call(put("/app/presidiums/me/officers/" + founderId + "/term"), founder,
+				"{\"appointedDate\": \"%s\", \"termYears\": 3, \"termMonths\": 0}".formatted(appointed))
+				.andExpect(jsonPath("$.officerTermEndDate").value(appointed.plusYears(3).minusDays(1).toString()));
+		call(get("/app/notifications"), member3, null)
+				.andExpect(jsonPath("$[0].type").value("OFFICER_TERM_ENDING"))
+				.andExpect(jsonPath("$[0].title").value(org.hamcrest.Matchers.containsString("간부 이동 필요")))
+				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("단장")));
+		termService.notifyEndingTerms();
+		call(get("/app/notifications"), member3, null)
+				.andExpect(jsonPath("$[?(@.type == 'OFFICER_TERM_ENDING')]", org.hamcrest.Matchers.hasSize(1)));
 	}
 
 	@Test
@@ -259,6 +331,9 @@ class PresidiumGovernanceTests {
 				""".formatted(member2Id))).get("id").asLong();
 		call(post("/app/presidiums/me/elections/" + electionId + "/votes"), founder, "{\"approve\": true}");
 		call(post("/app/presidiums/me/elections/" + electionId + "/votes"), member2, "{\"approve\": true}")
+				.andExpect(jsonPath("$.status").value("ELECTED"));
+		call(post("/app/presidiums/me/elections/" + electionId + "/appoint"), founder,
+				"{\"appointedDate\": \"%s\", \"termYears\": 3, \"termMonths\": 0}".formatted(LocalDate.now(KOREA)))
 				.andExpect(jsonPath("$.status").value("APPOINTED"));
 	}
 

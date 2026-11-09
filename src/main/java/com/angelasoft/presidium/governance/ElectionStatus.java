@@ -3,7 +3,9 @@ package com.angelasoft.presidium.governance;
 public enum ElectionStatus {
     /** 투표 진행 중. */
     OPEN,
-    /** 과반 찬성으로 임명됨. */
+    /** 과반 찬성으로 당선됨. 4간부나 당선자가 임명일·임기를 정해 임명하면 APPOINTED. */
+    ELECTED,
+    /** 임명됨. */
     APPOINTED,
     /** 과반 찬성이 불가능해져 부결됨. */
     REJECTED,

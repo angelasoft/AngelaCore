@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -59,6 +60,15 @@ public class PresidiumMembership {
     @Column(length = 20)
     private OfficerRole officerRole;
 
+    /** 간부 임명일. 기능 도입 전 간부나 쁘레시디움을 만든 단장은 4간부가 입력하기 전까지 null. */
+    private LocalDate officerAppointedDate;
+
+    /** 간부 임기 (개월). 3년이면 36. */
+    private Integer officerTermMonths;
+
+    /** 임기 만료 한 달 전 간부 이동 알림을 이번 임기에 이미 보냈는지. */
+    private Boolean officerTermNoticeSent;
+
     @Builder
     private PresidiumMembership(User user, Presidium presidium, OfficerRole officerRole) {
         this.user = user;
@@ -86,10 +96,41 @@ public class PresidiumMembership {
     }
 
     public void appoint(OfficerRole role) {
+        appoint(role, null, null);
+    }
+
+    public void appoint(OfficerRole role, LocalDate appointedDate, Integer termMonths) {
         this.officerRole = role;
+        updateOfficerTerm(appointedDate, termMonths);
+    }
+
+    /** 임명일·임기를 바꾸면 만료 알림을 다시 보낼 수 있다. */
+    public void updateOfficerTerm(LocalDate appointedDate, Integer termMonths) {
+        this.officerAppointedDate = appointedDate;
+        this.officerTermMonths = termMonths;
+        this.officerTermNoticeSent = false;
     }
 
     public void dismissOfficer() {
         this.officerRole = null;
+        this.officerAppointedDate = null;
+        this.officerTermMonths = null;
+        this.officerTermNoticeSent = null;
+    }
+
+    /** 임기 마지막 날. 임명일·임기가 없으면 null. 예: 2026-01-07 부터 3년이면 2029-01-06. */
+    public LocalDate getOfficerTermEndDate() {
+        if (officerRole == null || officerAppointedDate == null || officerTermMonths == null) {
+            return null;
+        }
+        return officerAppointedDate.plusMonths(officerTermMonths).minusDays(1);
+    }
+
+    public boolean isOfficerTermNoticeSent() {
+        return Boolean.TRUE.equals(officerTermNoticeSent);
+    }
+
+    public void markOfficerTermNoticeSent() {
+        this.officerTermNoticeSent = true;
     }
 }

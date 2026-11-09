@@ -11,5 +11,7 @@ public enum NotificationType {
     /** 간부 투표 결과 (단원 전체에게). */
     ELECTION_RESULT,
     /** 단장이 쁘레또리움·아듀또리움 단원으로 임명하거나 해제함 (당사자에게). */
-    GRADE_CHANGED
+    GRADE_CHANGED,
+    /** 간부 임기 만료 한 달 전, 간부 이동이 필요함 (단원 전체에게). */
+    OFFICER_TERM_ENDING
 }

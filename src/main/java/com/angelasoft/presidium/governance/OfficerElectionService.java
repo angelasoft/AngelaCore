@@ -11,6 +11,8 @@ import com.angelasoft.presidium.OfficerRole;
 import com.angelasoft.presidium.PresidiumMembership;
 import com.angelasoft.presidium.PresidiumMembershipRepository;
 import com.angelasoft.presidium.governance.GovernanceDtos.ElectionResponse;
+import com.angelasoft.presidium.governance.GovernanceDtos.OfficerTermRequest;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * - 4간부만 투표를 시작할 수 있고, 후보는 행동단원(쁘레또리움 포함)이어야 한다. 직책별로 진행 중인 투표는 하나.
  * - 투표 시작 전에 가입한 행동단원(쁘레또리움 포함)이 한 번씩 찬반 투표한다.
- * - 과반 찬성이면 임명, 과반 찬성이 불가능해지면 부결, 7일이 지나면 종료.
+ * - 과반 찬성이면 당선, 과반 찬성이 불가능해지면 부결, 7일이 지나면 종료.
+ * - 당선되면 4간부나 당선자가 임명일·임기를 정해 임명한다.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,6 +39,7 @@ public class OfficerElectionService {
     private final OfficerElectionRepository electionRepository;
     private final ElectionBallotRepository ballotRepository;
     private final NotificationService notificationService;
+    private final OfficerTermService termService;
 
     @Transactional
     public List<ElectionResponse> list(Long userId) {
@@ -44,8 +48,9 @@ public class OfficerElectionService {
         closeExpired(presidiumId);
 
         List<OfficerElection> all = electionRepository.findByPresidiumIdWithUsers(presidiumId);
-        List<OfficerElection> visible = new ArrayList<>(all.stream().filter(OfficerElection::isOpen).toList());
-        all.stream().filter(e -> !e.isOpen()).limit(CLOSED_HISTORY_SIZE).forEach(visible::add);
+        List<OfficerElection> visible = new ArrayList<>(
+                all.stream().filter(e -> e.isOpen() || e.isElected()).toList());
+        all.stream().filter(e -> !e.isOpen() && !e.isElected()).limit(CLOSED_HISTORY_SIZE).forEach(visible::add);
         return visible.stream().map(e -> toResponse(e, me)).toList();
     }
 
@@ -72,6 +77,9 @@ public class OfficerElectionService {
         }
         if (electionRepository.existsByPresidiumIdAndPositionAndStatus(presidiumId, position, ElectionStatus.OPEN)) {
             throw GovernanceException.conflict(position.getLabel() + " 투표가 이미 진행 중입니다.");
+        }
+        if (electionRepository.existsByPresidiumIdAndPositionAndStatus(presidiumId, position, ElectionStatus.ELECTED)) {
+            throw GovernanceException.conflict(position.getLabel() + " 당선자의 임명을 먼저 마쳐 주세요.");
         }
 
         List<Long> voterIds = membershipRepository.findByPresidiumIdWithUser(presidiumId).stream()
@@ -129,13 +137,82 @@ public class OfficerElectionService {
         return toResponse(election, me);
     }
 
-    /** 퇴단 등으로 후보가 사라진 진행 중 투표를 취소한다. */
+    /**
+     * 당선된 후보를 임명한다. 4간부나 당선자 본인이 임명일(초기 설정을 위해 지난 날짜도 가능)과 임기를 정한다.
+     * 같은 직책의 이전 간부는 물러난다.
+     */
+    @Transactional
+    public ElectionResponse appoint(Long userId, Long electionId, OfficerTermRequest request) {
+        PresidiumMembership me = membershipLookup.require(userId);
+        OfficerElection election = findInPresidium(electionId, me);
+        if (!election.isElected()) {
+            throw GovernanceException.conflict("당선된 투표만 임명할 수 있습니다.");
+        }
+        if (!canAppoint(election, me)) {
+            throw GovernanceException.forbidden("4간부나 당선자 본인만 임명할 수 있습니다.");
+        }
+        LocalDate appointedDate = OfficerTermService.parseAppointedDate(request.appointedDate());
+        int termMonths = OfficerTermService.termMonths(request);
+
+        Long presidiumId = election.getPresidium().getId();
+        PresidiumMembership candidate = membershipRepository
+                .findByPresidiumIdAndUserId(presidiumId, election.getCandidate().getId())
+                .filter(m -> m.getGrade().isActiveMember())
+                .orElse(null);
+        if (candidate == null) {
+            finish(election, ElectionStatus.CANCELED);
+            throw GovernanceException.conflict("당선자가 더 이상 행동단원이 아니어서 투표가 취소되었습니다.");
+        }
+
+        membershipRepository.findByPresidiumIdAndOfficerRole(presidiumId, election.getPosition())
+                .filter(previous -> !previous.getId().equals(candidate.getId()))
+                .ifPresent(PresidiumMembership::dismissOfficer);
+        candidate.appoint(election.getPosition(), appointedDate, termMonths);
+        election.markAppointed(appointedDate, termMonths);
+        notifyResult(election, "%s 단원이 %s %s 임명되었습니다. (임기 %s)".formatted(
+                displayName(election.getCandidate()),
+                "%d년 %d월 %d일".formatted(appointedDate.getYear(), appointedDate.getMonthValue(), appointedDate.getDayOfMonth()),
+                withEuro(election.getPosition().getLabel()),
+                GovernanceDtos.termLabel(termMonths)));
+        termService.notifyIfEnding(candidate, OfficerTermService.today());
+        return toResponse(election, me);
+    }
+
+    /** 당선 뒤 임명하지 않기로 하면 4간부가 취소한다 (당선자가 고사한 경우 등). */
+    @Transactional
+    public ElectionResponse cancelElected(Long userId, Long electionId) {
+        PresidiumMembership me = membershipLookup.require(userId);
+        OfficerElection election = findInPresidium(electionId, me);
+        if (!election.isElected()) {
+            throw GovernanceException.conflict("임명을 기다리는 당선만 취소할 수 있습니다.");
+        }
+        if (!me.isOfficer()) {
+            throw GovernanceException.forbidden("4간부만 취소할 수 있습니다.");
+        }
+        finish(election, ElectionStatus.CANCELED);
+        return toResponse(election, me);
+    }
+
+    /** 퇴단 등으로 후보가 사라진 진행 중·임명 대기 투표를 취소한다. */
     @Transactional
     public void cancelOpenElectionsForCandidate(Long presidiumId, Long candidateUserId) {
-        for (OfficerElection election : electionRepository.findByPresidiumIdAndCandidateIdAndStatus(
-                presidiumId, candidateUserId, ElectionStatus.OPEN)) {
-            finish(election, ElectionStatus.CANCELED);
+        for (ElectionStatus status : List.of(ElectionStatus.OPEN, ElectionStatus.ELECTED)) {
+            for (OfficerElection election : electionRepository.findByPresidiumIdAndCandidateIdAndStatus(
+                    presidiumId, candidateUserId, status)) {
+                finish(election, ElectionStatus.CANCELED);
+            }
         }
+    }
+
+    private OfficerElection findInPresidium(Long electionId, PresidiumMembership me) {
+        return electionRepository.findById(electionId)
+                .filter(e -> e.getPresidium().getId().equals(me.getPresidium().getId()))
+                .orElseThrow(() -> GovernanceException.notFound("투표를 찾을 수 없습니다."));
+    }
+
+    private static boolean canAppoint(OfficerElection election, PresidiumMembership me) {
+        return election.isElected()
+                && (me.isOfficer() || election.getCandidate().getId().equals(me.getUser().getId()));
     }
 
     private void closeExpired(Long presidiumId) {
@@ -158,28 +235,19 @@ public class OfficerElectionService {
         int required = election.requiredVotes();
 
         if (yes >= required) {
-            appoint(election);
+            elect(election);
         } else if (election.getEligibleVoterCount() - no < required) {
             finish(election, ElectionStatus.REJECTED);
         }
     }
 
-    private void appoint(OfficerElection election) {
-        Long presidiumId = election.getPresidium().getId();
-        PresidiumMembership candidate = membershipRepository
-                .findByPresidiumIdAndUserId(presidiumId, election.getCandidate().getId())
+    /** 과반 찬성: 당선. 임명일·임기를 정해 임명할 때까지 간부가 되지는 않는다. */
+    private void elect(OfficerElection election) {
+        boolean stillActive = membershipRepository
+                .findByPresidiumIdAndUserId(election.getPresidium().getId(), election.getCandidate().getId())
                 .filter(m -> m.getGrade().isActiveMember())
-                .orElse(null);
-        if (candidate == null) {
-            finish(election, ElectionStatus.CANCELED);
-            return;
-        }
-
-        membershipRepository.findByPresidiumIdAndOfficerRole(presidiumId, election.getPosition())
-                .filter(previous -> !previous.getId().equals(candidate.getId()))
-                .ifPresent(PresidiumMembership::dismissOfficer);
-        candidate.appoint(election.getPosition());
-        finish(election, ElectionStatus.APPOINTED);
+                .isPresent();
+        finish(election, stillActive ? ElectionStatus.ELECTED : ElectionStatus.CANCELED);
     }
 
     private void finish(OfficerElection election, ElectionStatus result) {
@@ -188,13 +256,17 @@ public class OfficerElectionService {
         String candidateName = displayName(election.getCandidate());
         String position = election.getPosition().getLabel();
         String message = switch (result) {
-            case APPOINTED -> "%s 단원이 %s 임명되었습니다.".formatted(candidateName, withEuro(position));
+            case ELECTED -> "%s 단원이 %s 당선되었습니다. 간부 이동 화면에서 임명일과 임기를 정해 임명해 주세요."
+                    .formatted(candidateName, withEuro(position));
             case REJECTED -> "%s 단원의 %s 임명 투표가 부결되었습니다.".formatted(candidateName, position);
             case EXPIRED -> "%s 단원의 %s 임명 투표가 기한 내에 결정되지 않아 종료되었습니다.".formatted(candidateName, position);
             case CANCELED -> "%s 단원의 %s 임명 투표가 취소되었습니다.".formatted(candidateName, position);
-            case OPEN -> throw new IllegalArgumentException("OPEN is not a result");
+            case OPEN, APPOINTED -> throw new IllegalArgumentException(result + " is not a closing result");
         };
+        notifyResult(election, message);
+    }
 
+    private void notifyResult(OfficerElection election, String message) {
         List<Long> memberIds = membershipRepository.findByPresidiumIdWithUser(election.getPresidium().getId()).stream()
                 .map(m -> m.getUser().getId())
                 .toList();
@@ -248,6 +320,9 @@ public class OfficerElectionService {
                 ballots.size() - yes,
                 myVote,
                 canVote,
+                canAppoint(election, me),
+                election.getAppointedDate(),
+                GovernanceDtos.termLabel(election.getTermMonths()),
                 toInstant(election.getCreatedAt()),
                 toInstant(election.getClosesAt()),
                 toInstant(election.getClosedAt()));

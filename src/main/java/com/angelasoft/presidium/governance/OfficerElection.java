@@ -15,6 +15,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -22,7 +23,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 간부 이동 투표. 후보 1명에 대한 찬반 투표이며, 투표 시작 시점의 행동단원 수 과반이 찬성하면 임명된다.
+ * 간부 이동 투표. 후보 1명에 대한 찬반 투표이며, 투표 시작 시점의 행동단원 수 과반이 찬성하면 당선되고,
+ * 임명일·임기를 정해 임명하면 간부가 된다.
  */
 @Entity
 @Table(name = "officer_elections")
@@ -68,6 +70,11 @@ public class OfficerElection {
 
     private LocalDateTime closedAt;
 
+    /** 임명할 때 정한 임명일과 임기 (개월). */
+    private LocalDate appointedDate;
+
+    private Integer termMonths;
+
     @Builder
     private OfficerElection(Presidium presidium, OfficerRole position, User candidate, User startedBy, int eligibleVoterCount) {
         this.presidium = presidium;
@@ -89,6 +96,11 @@ public class OfficerElection {
         return status == ElectionStatus.OPEN;
     }
 
+    /** 당선돼 임명을 기다리는 중. */
+    public boolean isElected() {
+        return status == ElectionStatus.ELECTED;
+    }
+
     public boolean isPastDeadline(LocalDateTime now) {
         return now.isAfter(closesAt);
     }
@@ -96,5 +108,11 @@ public class OfficerElection {
     void close(ElectionStatus result) {
         this.status = result;
         this.closedAt = LocalDateTime.now();
+    }
+
+    void markAppointed(LocalDate appointedDate, int termMonths) {
+        this.appointedDate = appointedDate;
+        this.termMonths = termMonths;
+        this.status = ElectionStatus.APPOINTED;
     }
 }

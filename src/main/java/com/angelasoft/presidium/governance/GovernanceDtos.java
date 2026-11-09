@@ -5,6 +5,7 @@ import com.angelasoft.presidium.MemberGrade;
 import com.angelasoft.presidium.OfficerRole;
 import com.angelasoft.presidium.PresidiumMembership;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -26,6 +27,12 @@ public final class GovernanceDtos {
         return time == null ? null : time.atZone(ZoneId.systemDefault()).toInstant();
     }
 
+    /** 임기 표시. 36개월이면 "3년 0개월". */
+    static String termLabel(Integer months) {
+        return months == null ? null : "%d년 %d개월".formatted(months / 12, months % 12);
+    }
+
+    /** 간부면 임명일·임기·임기 마지막 날(입력 전이면 null)도 내려준다. */
     public record MemberResponse(
             Long userId,
             String displayName,
@@ -33,21 +40,36 @@ public final class GovernanceDtos {
             String gradeLabel,
             OfficerRole officerRole,
             String officerLabel,
+            LocalDate officerAppointedDate,
+            Integer officerTermMonths,
+            String officerTermLabel,
+            LocalDate officerTermEndDate,
             Instant joinedAt,
             boolean me
     ) {
         static MemberResponse of(PresidiumMembership m, Long currentUserId) {
             OfficerRole role = m.getOfficerRole();
+            boolean officer = role != null;
             return new MemberResponse(
                     m.getUser().getId(),
                     GovernanceDtos.displayName(m.getUser()),
                     m.getGrade(),
                     m.getGrade().getLabel(),
                     role,
-                    role == null ? null : role.getLabel(),
+                    officer ? role.getLabel() : null,
+                    officer ? m.getOfficerAppointedDate() : null,
+                    officer ? m.getOfficerTermMonths() : null,
+                    officer ? termLabel(m.getOfficerTermMonths()) : null,
+                    m.getOfficerTermEndDate(),
                     toInstant(m.getJoinedAt()),
                     m.getUser().getId().equals(currentUserId));
         }
+    }
+
+    /**
+     * 간부 임명 또는 임기 입력. 임명일은 "2026-01-07" (오늘이나 지난 날짜), 임기는 년·개월 (3년이면 3년 0개월).
+     */
+    public record OfficerTermRequest(String appointedDate, Integer termYears, Integer termMonths) {
     }
 
     public record StartElectionRequest(OfficerRole position, Long candidateUserId) {
@@ -74,6 +96,10 @@ public final class GovernanceDtos {
             long noCount,
             Boolean myVote,
             boolean canVote,
+            /** 당선(ELECTED) 상태에서 4간부와 당선자. */
+            boolean canAppoint,
+            LocalDate appointedDate,
+            String termLabel,
             Instant createdAt,
             Instant closesAt,
             Instant closedAt

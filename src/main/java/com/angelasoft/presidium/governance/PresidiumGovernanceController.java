@@ -7,6 +7,7 @@ import com.angelasoft.presidium.governance.GovernanceDtos.DecisionRequest;
 import com.angelasoft.presidium.governance.GovernanceDtos.ElectionResponse;
 import com.angelasoft.presidium.governance.GovernanceDtos.HigherDegreeRequest;
 import com.angelasoft.presidium.governance.GovernanceDtos.MemberResponse;
+import com.angelasoft.presidium.governance.GovernanceDtos.OfficerTermRequest;
 import com.angelasoft.presidium.governance.GovernanceDtos.RequestResponse;
 import com.angelasoft.presidium.governance.GovernanceDtos.RequestsResponse;
 import com.angelasoft.presidium.governance.GovernanceDtos.StartElectionRequest;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -33,6 +35,9 @@ import org.springframework.web.bind.annotation.RestController;
  *   GET  /app/presidiums/me/elections
  *   POST /app/presidiums/me/elections                   {position, candidateUserId}  4간부만
  *   POST /app/presidiums/me/elections/{id}/votes        {approve}
+ *   POST /app/presidiums/me/elections/{id}/appoint      {appointedDate, termYears, termMonths}  당선 후 4간부·당선자
+ *   POST /app/presidiums/me/elections/{id}/cancel       당선 후 임명하지 않기로 할 때, 4간부만
+ *   PUT  /app/presidiums/me/officers/{userId}/term      {appointedDate, termYears, termMonths}  4간부만
  *   GET  /app/presidiums/me/requests
  *   POST /app/presidiums/me/requests                    {type: AUXILIARY | ACTIVE | WITHDRAWAL | ACTIVITY, activityName}
  *   POST /app/presidiums/me/requests/{id}/decision      {approve}  4간부만
@@ -48,6 +53,7 @@ public class PresidiumGovernanceController {
     private final OfficerElectionService electionService;
     private final MembershipRequestService requestService;
     private final HigherDegreeService higherDegreeService;
+    private final OfficerTermService termService;
 
     @GetMapping("/members")
     @Transactional(readOnly = true)
@@ -88,6 +94,32 @@ public class PresidiumGovernanceController {
             @RequestBody VoteRequest request
     ) {
         return electionService.vote(principal.getUserId(), electionId, request.approve());
+    }
+
+    @PostMapping("/elections/{electionId}/appoint")
+    public ElectionResponse appoint(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @PathVariable Long electionId,
+            @RequestBody OfficerTermRequest request
+    ) {
+        return electionService.appoint(principal.getUserId(), electionId, request);
+    }
+
+    @PostMapping("/elections/{electionId}/cancel")
+    public ElectionResponse cancelElected(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @PathVariable Long electionId
+    ) {
+        return electionService.cancelElected(principal.getUserId(), electionId);
+    }
+
+    @PutMapping("/officers/{officerUserId}/term")
+    public MemberResponse updateOfficerTerm(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @PathVariable Long officerUserId,
+            @RequestBody OfficerTermRequest request
+    ) {
+        return termService.updateTerm(principal.getUserId(), officerUserId, request);
     }
 
     @GetMapping("/requests")

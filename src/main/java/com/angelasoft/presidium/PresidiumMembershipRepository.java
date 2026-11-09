@@ -43,4 +43,16 @@ public interface PresidiumMembershipRepository extends JpaRepository<PresidiumMe
     Optional<PresidiumMembership> findByPresidiumIdAndOfficerRole(Long presidiumId, OfficerRole officerRole);
 
     List<PresidiumMembership> findByPresidiumIdAndOfficerRoleIsNotNull(Long presidiumId);
+
+    /** 임명일·임기가 있고 이번 임기 만료 알림을 아직 보내지 않은 간부. */
+    @Query("""
+            SELECT m FROM PresidiumMembership m
+            JOIN FETCH m.presidium
+            JOIN FETCH m.user
+            WHERE m.officerRole IS NOT NULL
+              AND m.officerAppointedDate IS NOT NULL
+              AND m.officerTermMonths IS NOT NULL
+              AND (m.officerTermNoticeSent IS NULL OR m.officerTermNoticeSent = false)
+            """)
+    List<PresidiumMembership> findOfficersAwaitingTermNotice();
 }

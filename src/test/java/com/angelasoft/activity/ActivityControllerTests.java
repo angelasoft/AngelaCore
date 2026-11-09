@@ -28,7 +28,8 @@ class ActivityControllerTests {
 	void returnsSeededActivitiesInReportOrderWithoutLogin() throws Exception {
 		mockMvc.perform(get("/app/activities"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.length()").value(40))
+				// 다른 테스트가 승인한 활동 등록 요청이 뒤에 붙을 수 있다.
+				.andExpect(jsonPath("$.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(40)))
 				.andExpect(jsonPath("$[0].name").value("묵주기도"))
 				.andExpect(jsonPath("$[1].name").value("미사영성체"))
 				.andExpect(jsonPath("$[33].name").value("입교권면"))
