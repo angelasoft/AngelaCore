@@ -13,6 +13,9 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -49,6 +52,21 @@ public class Presidium {
     @Column(length = 10)
     private PresidiumType type;
 
+    /** 쁘레시디움 정보 (4간부가 입력). 입력 전에는 null. */
+    private LocalDate foundedDate;
+
+    /** 꾸리아 승인일. 주회합 차수를 이 날부터 센다. */
+    private LocalDate approvedDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private DayOfWeek meetingDay;
+
+    private LocalTime meetingTime;
+
+    @Column(length = 100)
+    private String meetingPlace;
+
     @Builder
     private Presidium(Curia curia, String name, User createdBy, PresidiumType type) {
         this.curia = curia;
@@ -63,5 +81,14 @@ public class Presidium {
 
     void assignCreator(User createdBy) {
         this.createdBy = createdBy;
+    }
+
+    public void updateProfile(
+            LocalDate foundedDate, LocalDate approvedDate, DayOfWeek meetingDay, LocalTime meetingTime, String meetingPlace) {
+        this.foundedDate = foundedDate;
+        this.approvedDate = approvedDate;
+        this.meetingDay = meetingDay;
+        this.meetingTime = meetingTime;
+        this.meetingPlace = meetingPlace;
     }
 }
