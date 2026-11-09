@@ -49,7 +49,7 @@ public class PresidiumMembership {
     @Column(nullable = false)
     private LocalDateTime joinedAt;
 
-    /** 기존 가입 행에 컬럼을 추가할 수 있도록 DB 에서는 null 을 허용하고, null 은 활동단원으로 본다. */
+    /** 기존 가입 행에 컬럼을 추가할 수 있도록 DB 에서는 null 을 허용하고, null 은 행동단원으로 본다. */
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private MemberGrade grade;

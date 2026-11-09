@@ -105,7 +105,7 @@ class PresidiumGovernanceTests {
 				.andExpect(jsonPath("$.requiredVotes").value(2)));
 		long electionId = election.get("id").asLong();
 
-		// 투표 시작 알림이 시작한 사람을 뺀 활동단원에게 간다.
+		// 투표 시작 알림이 시작한 사람을 뺀 행동단원에게 간다.
 		call(get("/app/notifications/unread-count"), member3, null).andExpect(jsonPath("$.count").value(1));
 		call(get("/app/notifications"), member3, null).andExpect(jsonPath("$[0].type").value("ELECTION_STARTED"));
 
@@ -143,7 +143,7 @@ class PresidiumGovernanceTests {
 				.andExpect(jsonPath("$.status").value("APPROVED"));
 		call(get("/app/presidiums/me"), member3, null).andExpect(jsonPath("$.grade").value("AUXILIARY"));
 
-		// 활동단원 신청: 협조단원만 할 수 있고, 같은 과반 승인으로 활동단원이 된다.
+		// 행동단원 신청: 협조단원만 할 수 있고, 같은 과반 승인으로 행동단원이 된다.
 		call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"AUXILIARY\"}").andExpect(status().isConflict());
 		call(post("/app/presidiums/me/requests"), founder, "{\"type\": \"ACTIVE\"}").andExpect(status().isBadRequest());
 		long activeId = json(call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"ACTIVE\"}")
@@ -153,7 +153,7 @@ class PresidiumGovernanceTests {
 				.andExpect(jsonPath("$.status").value("APPROVED"));
 		call(get("/app/presidiums/me"), member3, null).andExpect(jsonPath("$.grade").value("ACTIVE"));
 		call(get("/app/notifications"), member3, null)
-				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("활동단원으로 변경")));
+				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("행동단원으로 변경")));
 		call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"ACTIVE\"}").andExpect(status().isConflict());
 
 		// 간부는 후임 임명 전에는 신청할 수 없다.
@@ -176,6 +176,35 @@ class PresidiumGovernanceTests {
 				.andExpect(jsonPath("$[0].type").value("MEMBERSHIP_REQUEST_RESULT"))
 				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("퇴단 처리")));
 		call(get("/app/presidiums/me/members"), founder, null).andExpect(jsonPath("$.length()").value(2));
+	}
+
+	@Test
+	void presidentAppointsPraetorianAndAdjutorianMembers() throws Exception {
+		appointViceByVote();
+
+		// 단장만 임명할 수 있다 (부단장도 안 됨).
+		call(post("/app/presidiums/me/members/" + member3Id + "/higher-degree"), member2, "{\"appoint\": true}")
+				.andExpect(status().isForbidden());
+
+		call(post("/app/presidiums/me/members/" + member3Id + "/higher-degree"), founder, "{\"appoint\": true}")
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.grade").value("PRAETORIAN"))
+				.andExpect(jsonPath("$.gradeLabel").value("쁘레또리움 단원"));
+		call(post("/app/presidiums/me/members/" + member3Id + "/higher-degree"), founder, "{\"appoint\": true}")
+				.andExpect(status().isConflict());
+		call(get("/app/notifications"), member3, null)
+				.andExpect(jsonPath("$[0].type").value("GRADE_CHANGED"))
+				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("쁘레또리움 단원으로 임명")));
+
+		// 쁘레또리움 단원도 행동단원이라 간부 투표 후보가 될 수 있다.
+		call(post("/app/presidiums/me/elections"), founder, """
+				{"position": "SECRETARY", "candidateUserId": %d}
+				""".formatted(member3Id)).andExpect(status().isCreated());
+
+		// 해제하면 기본 등급(행동단원)으로 돌아간다.
+		call(post("/app/presidiums/me/members/" + member3Id + "/higher-degree"), founder, "{\"appoint\": false}")
+				.andExpect(jsonPath("$.grade").value("ACTIVE"))
+				.andExpect(jsonPath("$.gradeLabel").value("행동단원"));
 	}
 
 	@Test

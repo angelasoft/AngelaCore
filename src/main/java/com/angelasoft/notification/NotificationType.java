@@ -9,5 +9,7 @@ public enum NotificationType {
     /** 간부 투표 시작 (투표권자에게). */
     ELECTION_STARTED,
     /** 간부 투표 결과 (단원 전체에게). */
-    ELECTION_RESULT
+    ELECTION_RESULT,
+    /** 단장이 쁘레또리움·아듀또리움 단원으로 임명하거나 해제함 (당사자에게). */
+    GRADE_CHANGED
 }

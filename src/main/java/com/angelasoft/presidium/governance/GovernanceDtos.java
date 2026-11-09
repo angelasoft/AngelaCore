@@ -53,6 +53,10 @@ public final class GovernanceDtos {
     public record StartElectionRequest(OfficerRole position, Long candidateUserId) {
     }
 
+    /** true 면 쁘레또리움·아듀또리움 단원으로 임명, false 면 해제. */
+    public record HigherDegreeRequest(Boolean appoint) {
+    }
+
     public record VoteRequest(Boolean approve) {
     }
 

@@ -21,8 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 간부 이동 투표.
  *
- * - 4간부만 투표를 시작할 수 있고, 후보는 활동단원이어야 한다. 직책별로 진행 중인 투표는 하나.
- * - 투표 시작 전에 가입한 활동단원이 한 번씩 찬반 투표한다.
+ * - 4간부만 투표를 시작할 수 있고, 후보는 행동단원(쁘레또리움 포함)이어야 한다. 직책별로 진행 중인 투표는 하나.
+ * - 투표 시작 전에 가입한 행동단원(쁘레또리움 포함)이 한 번씩 찬반 투표한다.
  * - 과반 찬성이면 임명, 과반 찬성이 불가능해지면 부결, 7일이 지나면 종료.
  */
 @Service
@@ -64,8 +64,8 @@ public class OfficerElectionService {
 
         PresidiumMembership candidate = membershipRepository.findByPresidiumIdAndUserId(presidiumId, candidateUserId)
                 .orElseThrow(() -> GovernanceException.notFound("후보가 이 쁘레시디움 단원이 아닙니다."));
-        if (candidate.getGrade() != MemberGrade.ACTIVE) {
-            throw GovernanceException.badRequest("간부는 활동단원만 맡을 수 있습니다.");
+        if (!candidate.getGrade().isActiveMember()) {
+            throw GovernanceException.badRequest("간부는 행동단원(쁘레또리움 단원 포함)만 맡을 수 있습니다.");
         }
         if (candidate.getOfficerRole() == position) {
             throw GovernanceException.conflict("이미 " + position.getLabel() + " 직책을 맡고 있는 단원입니다.");
@@ -75,7 +75,7 @@ public class OfficerElectionService {
         }
 
         List<Long> voterIds = membershipRepository.findByPresidiumIdWithUser(presidiumId).stream()
-                .filter(m -> m.getGrade() == MemberGrade.ACTIVE)
+                .filter(m -> m.getGrade().isActiveMember())
                 .map(m -> m.getUser().getId())
                 .toList();
 
@@ -168,7 +168,7 @@ public class OfficerElectionService {
         Long presidiumId = election.getPresidium().getId();
         PresidiumMembership candidate = membershipRepository
                 .findByPresidiumIdAndUserId(presidiumId, election.getCandidate().getId())
-                .filter(m -> m.getGrade() == MemberGrade.ACTIVE)
+                .filter(m -> m.getGrade().isActiveMember())
                 .orElse(null);
         if (candidate == null) {
             finish(election, ElectionStatus.CANCELED);
@@ -214,8 +214,8 @@ public class OfficerElectionService {
     }
 
     private String cannotVoteReason(OfficerElection election, PresidiumMembership me) {
-        if (me.getGrade() != MemberGrade.ACTIVE) {
-            return "활동단원만 투표할 수 있습니다.";
+        if (!me.getGrade().isActiveMember()) {
+            return "행동단원(쁘레또리움 단원 포함)만 투표할 수 있습니다.";
         }
         if (me.getJoinedAt().isAfter(election.getCreatedAt())) {
             return "투표가 시작된 뒤 가입한 단원은 이 투표에 참여할 수 없습니다.";

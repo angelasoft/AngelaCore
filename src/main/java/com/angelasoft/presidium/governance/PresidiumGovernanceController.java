@@ -5,6 +5,7 @@ import com.angelasoft.presidium.PresidiumMembership;
 import com.angelasoft.presidium.PresidiumMembershipRepository;
 import com.angelasoft.presidium.governance.GovernanceDtos.DecisionRequest;
 import com.angelasoft.presidium.governance.GovernanceDtos.ElectionResponse;
+import com.angelasoft.presidium.governance.GovernanceDtos.HigherDegreeRequest;
 import com.angelasoft.presidium.governance.GovernanceDtos.MemberResponse;
 import com.angelasoft.presidium.governance.GovernanceDtos.RequestResponse;
 import com.angelasoft.presidium.governance.GovernanceDtos.RequestsResponse;
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 내 쁘레시디움의 단원·간부 이동 투표·협조단원/퇴단 신청 API (인증 필요).
  *
  *   GET  /app/presidiums/me/members
+ *   POST /app/presidiums/me/members/{userId}/higher-degree  {appoint}  쁘레또리움·아듀또리움 임명/해제, 단장만
  *   GET  /app/presidiums/me/elections
  *   POST /app/presidiums/me/elections                   {position, candidateUserId}  4간부만
  *   POST /app/presidiums/me/elections/{id}/votes        {approve}
@@ -45,6 +47,7 @@ public class PresidiumGovernanceController {
     private final PresidiumMembershipRepository membershipRepository;
     private final OfficerElectionService electionService;
     private final MembershipRequestService requestService;
+    private final HigherDegreeService higherDegreeService;
 
     @GetMapping("/members")
     @Transactional(readOnly = true)
@@ -53,6 +56,15 @@ public class PresidiumGovernanceController {
         return membershipRepository.findByPresidiumIdWithUser(me.getPresidium().getId()).stream()
                 .map(m -> MemberResponse.of(m, principal.getUserId()))
                 .toList();
+    }
+
+    @PostMapping("/members/{memberUserId}/higher-degree")
+    public MemberResponse changeHigherDegree(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @PathVariable Long memberUserId,
+            @RequestBody HigherDegreeRequest request
+    ) {
+        return higherDegreeService.change(principal.getUserId(), memberUserId, request.appoint());
     }
 
     @GetMapping("/elections")

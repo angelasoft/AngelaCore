@@ -1,10 +1,10 @@
 package com.angelasoft.presidium.governance;
 
 public enum MembershipRequestType {
-    /** 활동단원 → 협조단원 전환 신청. */
+    /** 행동단원 → 협조단원 전환 신청. */
     AUXILIARY("협조단원 신청"),
-    /** 협조단원 → 활동단원 전환 신청. */
-    ACTIVE("활동단원 신청"),
+    /** 협조단원 → 행동단원 전환 신청. */
+    ACTIVE("행동단원 신청"),
     /** 퇴단 신청. */
     WITHDRAWAL("퇴단 신청"),
     /** 활동보고 목록에 없는 활동 등록 요청. 승인되면 모든 쁘레시디움 목록에 추가된다. */

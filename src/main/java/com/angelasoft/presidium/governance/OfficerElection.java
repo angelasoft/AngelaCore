@@ -22,7 +22,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * 간부 이동 투표. 후보 1명에 대한 찬반 투표이며, 투표 시작 시점의 활동단원 수 과반이 찬성하면 임명된다.
+ * 간부 이동 투표. 후보 1명에 대한 찬반 투표이며, 투표 시작 시점의 행동단원 수 과반이 찬성하면 임명된다.
  */
 @Entity
 @Table(name = "officer_elections")
@@ -56,7 +56,7 @@ public class OfficerElection {
     @Column(nullable = false, length = 20)
     private ElectionStatus status;
 
-    /** 투표 시작 시점의 활동단원 수. 과반 기준이 된다. */
+    /** 투표 시작 시점의 행동단원 수. 과반 기준이 된다. */
     @Column(nullable = false)
     private int eligibleVoterCount;
 

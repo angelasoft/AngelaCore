@@ -21,7 +21,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 협조단원·활동단원·퇴단 신청과 활동 등록 요청.
+ * 협조단원·행동단원·퇴단 신청과 활동 등록 요청.
  *
  * - 등급 변경·퇴단: 간부는 간부 이동으로 후임이 임명된 뒤 신청할 수 있다. 처리 중인 신청은 한 사람당 하나.
  * - 활동 등록 요청: 간부를 포함해 누구나 할 수 있고, 승인되면 모든 쁘레시디움의 활동 목록에 추가된다.
@@ -106,11 +106,11 @@ public class MembershipRequestService {
             throw GovernanceException.badRequest(
                     "간부는 간부 이동으로 후임이 임명된 뒤 " + type.getLabel() + "을 할 수 있습니다.");
         }
-        if (type == MembershipRequestType.AUXILIARY && me.getGrade() == MemberGrade.AUXILIARY) {
+        if (type == MembershipRequestType.AUXILIARY && !me.getGrade().isActiveMember()) {
             throw GovernanceException.conflict("이미 협조단원입니다.");
         }
-        if (type == MembershipRequestType.ACTIVE && me.getGrade() == MemberGrade.ACTIVE) {
-            throw GovernanceException.conflict("이미 활동단원입니다.");
+        if (type == MembershipRequestType.ACTIVE && me.getGrade().isActiveMember()) {
+            throw GovernanceException.conflict("이미 행동단원입니다.");
         }
         if (requestRepository.existsByRequesterIdAndPresidiumIdAndStatusAndTypeIn(
                 me.getUser().getId(), me.getPresidium().getId(), MembershipRequestStatus.PENDING,
@@ -214,6 +214,7 @@ public class MembershipRequestService {
             return;
         }
 
+        // 행동·협조 갈래를 바꾸면 쁘레또리움·아듀또리움 같은 높은 등급은 풀리고, 필요하면 단장이 다시 임명한다.
         switch (request.getType()) {
             case AUXILIARY -> {
                 requester.dismissOfficer();
@@ -237,7 +238,7 @@ public class MembershipRequestService {
             case APPROVED -> switch (request.getType()) {
                 case WITHDRAWAL -> "퇴단 신청이 승인되어 쁘레시디움에서 퇴단 처리되었습니다.";
                 case AUXILIARY -> "협조단원 신청이 승인되어 협조단원으로 변경되었습니다.";
-                case ACTIVE -> "활동단원 신청이 승인되어 활동단원으로 변경되었습니다.";
+                case ACTIVE -> "행동단원 신청이 승인되어 행동단원으로 변경되었습니다.";
                 case ACTIVITY -> "'%s' 활동이 등록되어 모든 쁘레시디움 활동보고 목록에 추가되었습니다."
                         .formatted(request.getActivityName());
             };
