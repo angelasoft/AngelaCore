@@ -17,7 +17,9 @@ public interface MembershipRequestRepository extends JpaRepository<MembershipReq
             @Param("presidiumId") Long presidiumId,
             @Param("status") MembershipRequestStatus status);
 
-    List<MembershipRequest> findTop10ByRequesterIdOrderByCreatedAtDesc(Long requesterUserId);
+    List<MembershipRequest> findTop10ByRequesterIdAndPresidiumIdOrderByCreatedAtDesc(
+            Long requesterUserId, Long presidiumId);
 
-    boolean existsByRequesterIdAndStatus(Long requesterUserId, MembershipRequestStatus status);
+    boolean existsByRequesterIdAndPresidiumIdAndStatus(
+            Long requesterUserId, Long presidiumId, MembershipRequestStatus status);
 }

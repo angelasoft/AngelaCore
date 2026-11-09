@@ -61,6 +61,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/app/presidiums/me",
                                 "/app/presidiums/me/**",
+                                "/app/presidiums/mine",
                                 "/app/presidiums/*/join",
                                 "/app/notifications/**"
                         ).authenticated()

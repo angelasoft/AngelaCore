@@ -8,16 +8,27 @@ import org.springframework.data.repository.query.Param;
 
 public interface PresidiumMembershipRepository extends JpaRepository<PresidiumMembership, Long> {
 
-    Optional<PresidiumMembership> findByUserId(Long userId);
-
+    /** 내가 가입한 쁘레시디움 전체. 어른 쁘레시디움이 먼저, 그다음 가입한 순서. */
     @Query("""
             SELECT m FROM PresidiumMembership m
             JOIN FETCH m.presidium p
             JOIN FETCH p.curia c
             JOIN FETCH c.parish
             WHERE m.user.id = :userId
+            ORDER BY CASE WHEN p.type = com.angelasoft.presidium.PresidiumType.JUNIOR THEN 1 ELSE 0 END,
+                     m.joinedAt ASC, m.id ASC
             """)
-    Optional<PresidiumMembership> findByUserIdWithDetails(@Param("userId") Long userId);
+    List<PresidiumMembership> findAllByUserIdWithDetails(@Param("userId") Long userId);
+
+    @Query("""
+            SELECT m FROM PresidiumMembership m
+            JOIN FETCH m.presidium p
+            JOIN FETCH p.curia c
+            JOIN FETCH c.parish
+            WHERE m.user.id = :userId AND p.id = :presidiumId
+            """)
+    Optional<PresidiumMembership> findByUserIdAndPresidiumIdWithDetails(
+            @Param("userId") Long userId, @Param("presidiumId") Long presidiumId);
 
     @Query("""
             SELECT m FROM PresidiumMembership m

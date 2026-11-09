@@ -11,7 +11,9 @@ public final class PresidiumDtos {
             Long curiaId,
             String name,
             Long parishId,
-            String parishName
+            String parishName,
+            PresidiumType type,
+            String typeLabel
     ) {
         public static PresidiumResponse from(Presidium p) {
             return new PresidiumResponse(
@@ -20,7 +22,9 @@ public final class PresidiumDtos {
                     p.getCuria().getId(),
                     p.getName(),
                     p.getCuria().getParish().getId(),
-                    p.getCuria().getParish().getName()
+                    p.getCuria().getParish().getName(),
+                    p.getType(),
+                    p.getType().getLabel()
             );
         }
     }
@@ -31,11 +35,13 @@ public final class PresidiumDtos {
         }
     }
 
+    /** type 을 보내지 않으면 어른 쁘레시디움. */
     public record CreatePresidiumRequest(
             Long parishId,
             Long curiaId,
             String curiaName,
-            String name
+            String name,
+            PresidiumType type
     ) {
     }
 

@@ -3,6 +3,8 @@ package com.angelasoft.presidium;
 import com.angelasoft.admin.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -16,7 +18,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 쁘레시디움(Pr). 큐리아 소속. */
+/** 쁘레시디움(Pr). 큐리아 소속이며 어른/소년소녀 구분이 있다. */
 @Entity
 @Table(
         name = "presidiums",
@@ -42,11 +44,21 @@ public class Presidium {
     @JoinColumn(name = "created_by_user_id")
     private User createdBy;
 
+    /** 구분 도입 전 생성분은 DB 에 null 이며 어른 쁘레시디움으로 본다. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private PresidiumType type;
+
     @Builder
-    private Presidium(Curia curia, String name, User createdBy) {
+    private Presidium(Curia curia, String name, User createdBy, PresidiumType type) {
         this.curia = curia;
         this.name = name;
         this.createdBy = createdBy;
+        this.type = type == null ? PresidiumType.ADULT : type;
+    }
+
+    public PresidiumType getType() {
+        return type == null ? PresidiumType.ADULT : type;
     }
 
     void assignCreator(User createdBy) {

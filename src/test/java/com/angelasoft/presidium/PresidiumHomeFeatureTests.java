@@ -281,7 +281,7 @@ class PresidiumHomeFeatureTests {
 		JsonNode activities = json(mockMvc.perform(get("/app/activities")));
 		Activity rosary = activityRepository.findById(activities.get(0).get("id").asLong()).orElseThrow();
 		Activity mass = activityRepository.findById(activities.get(1).get("id").asLong()).orElseThrow();
-		PresidiumMembership membership = membershipRepository.findByUserIdWithDetails(memberId).orElseThrow();
+		PresidiumMembership membership = membershipRepository.findAllByUserIdWithDetails(memberId).get(0);
 		LocalDate weekStart = ActivityReportService.weekStartOf(TODAY).minusWeeks(3);
 
 		legacyReport(membership, weekStart, rosary, 2);

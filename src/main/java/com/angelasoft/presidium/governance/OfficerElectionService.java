@@ -90,7 +90,7 @@ public class OfficerElectionService {
         notificationService.notify(
                 voterIds.stream().filter(id -> !id.equals(userId)).toList(),
                 NotificationType.ELECTION_STARTED,
-                "간부 이동 투표",
+                NotificationService.presidiumTag(me.getPresidium().getName()) + "간부 이동 투표",
                 "%s 단원의 %s 임명 투표가 시작되었습니다. 투표에 참여해 주세요."
                         .formatted(displayName(candidate.getUser()), position.getLabel()),
                 election.getId());
@@ -131,8 +131,9 @@ public class OfficerElectionService {
 
     /** 퇴단 등으로 후보가 사라진 진행 중 투표를 취소한다. */
     @Transactional
-    public void cancelOpenElectionsForCandidate(Long candidateUserId) {
-        for (OfficerElection election : electionRepository.findByCandidateIdAndStatus(candidateUserId, ElectionStatus.OPEN)) {
+    public void cancelOpenElectionsForCandidate(Long presidiumId, Long candidateUserId) {
+        for (OfficerElection election : electionRepository.findByPresidiumIdAndCandidateIdAndStatus(
+                presidiumId, candidateUserId, ElectionStatus.OPEN)) {
             finish(election, ElectionStatus.CANCELED);
         }
     }
@@ -197,7 +198,9 @@ public class OfficerElectionService {
         List<Long> memberIds = membershipRepository.findByPresidiumIdWithUser(election.getPresidium().getId()).stream()
                 .map(m -> m.getUser().getId())
                 .toList();
-        notificationService.notify(memberIds, NotificationType.ELECTION_RESULT, "간부 이동 투표 결과", message, election.getId());
+        notificationService.notify(memberIds, NotificationType.ELECTION_RESULT,
+                NotificationService.presidiumTag(election.getPresidium().getName()) + "간부 이동 투표 결과",
+                message, election.getId());
     }
 
     /** 받침이 있으면(ㄹ 제외) "으로", 없으면 "로"를 붙인다. 예: 단장으로, 서기로. */

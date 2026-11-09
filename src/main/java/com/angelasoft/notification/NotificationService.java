@@ -43,6 +43,11 @@ public class NotificationService {
         eventPublisher.publishEvent(new PushRequested(userIds, title, message, data));
     }
 
+    /** 여러 쁘레시디움에 가입한 단원이 어느 쁘레시디움 소식인지 알 수 있게 제목 앞에 붙인다. 예: "[즐거움의샘] " */
+    public static String presidiumTag(String presidiumName) {
+        return "[" + presidiumName + "] ";
+    }
+
     @Transactional(readOnly = true)
     public List<Notification> recent(Long userId) {
         return notificationRepository.findTop50ByRecipientUserIdOrderByCreatedAtDesc(userId);

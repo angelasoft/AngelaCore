@@ -21,5 +21,6 @@ public interface OfficerElectionRepository extends JpaRepository<OfficerElection
 
     boolean existsByPresidiumIdAndPositionAndStatus(Long presidiumId, OfficerRole position, ElectionStatus status);
 
-    List<OfficerElection> findByCandidateIdAndStatus(Long candidateUserId, ElectionStatus status);
+    List<OfficerElection> findByPresidiumIdAndCandidateIdAndStatus(
+            Long presidiumId, Long candidateUserId, ElectionStatus status);
 }

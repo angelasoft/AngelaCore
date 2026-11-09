@@ -19,11 +19,16 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 사용자 ↔ 쁘레시디움 가입 관계. 1인 1쁘레시디움. */
+/**
+ * 사용자 ↔ 쁘레시디움 가입 관계. 쁘레시디움마다 한 번씩 가입하며,
+ * 어른 쁘레시디움은 1곳, 소년소녀 쁘레시디움은 여러 곳에 가입할 수 있다 (PresidiumMembershipRules).
+ */
 @Entity
 @Table(
         name = "presidium_memberships",
-        uniqueConstraints = @UniqueConstraint(columnNames = "user_id")
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_presidium_memberships_presidium_user",
+                columnNames = {"presidium_id", "user_id"})
 )
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -34,7 +39,7 @@ public class PresidiumMembership {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

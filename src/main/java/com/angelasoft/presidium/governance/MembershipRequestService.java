@@ -41,7 +41,8 @@ public class MembershipRequestService {
                         .map(r -> toResponse(r, me))
                         .toList()
                 : List.of();
-        List<RequestResponse> mine = requestRepository.findTop10ByRequesterIdOrderByCreatedAtDesc(userId).stream()
+        List<RequestResponse> mine = requestRepository
+                .findTop10ByRequesterIdAndPresidiumIdOrderByCreatedAtDesc(userId, me.getPresidium().getId()).stream()
                 .map(r -> toResponse(r, me))
                 .toList();
         return new RequestsResponse(me.isOfficer(), pending, mine);
@@ -60,7 +61,8 @@ public class MembershipRequestService {
         if (type == MembershipRequestType.AUXILIARY && me.getGrade() == MemberGrade.AUXILIARY) {
             throw GovernanceException.conflict("이미 협조단원입니다.");
         }
-        if (requestRepository.existsByRequesterIdAndStatus(userId, MembershipRequestStatus.PENDING)) {
+        if (requestRepository.existsByRequesterIdAndPresidiumIdAndStatus(
+                userId, me.getPresidium().getId(), MembershipRequestStatus.PENDING)) {
             throw GovernanceException.conflict("처리 중인 신청이 있습니다. 승인 결과를 기다려 주세요.");
         }
 
@@ -80,7 +82,7 @@ public class MembershipRequestService {
         notificationService.notify(
                 officers.stream().map(o -> o.getUser().getId()).toList(),
                 NotificationType.MEMBERSHIP_REQUEST,
-                type.getLabel() + " 승인 요청",
+                NotificationService.presidiumTag(me.getPresidium().getName()) + type.getLabel() + " 승인 요청",
                 "%s 단원이 %s을 했습니다. 승인 여부를 결정해 주세요.".formatted(displayName(me.getUser()), type.getLabel()),
                 request.getId());
 
@@ -159,7 +161,7 @@ public class MembershipRequestService {
                 requester.changeGrade(MemberGrade.AUXILIARY);
             }
             case WITHDRAWAL -> {
-                electionService.cancelOpenElectionsForCandidate(requesterId);
+                electionService.cancelOpenElectionsForCandidate(request.getPresidium().getId(), requesterId);
                 membershipRepository.delete(requester);
             }
         }
@@ -180,7 +182,7 @@ public class MembershipRequestService {
         notificationService.notify(
                 List.of(request.getRequester().getId()),
                 NotificationType.MEMBERSHIP_REQUEST_RESULT,
-                label + " 결과",
+                NotificationService.presidiumTag(request.getPresidium().getName()) + label + " 결과",
                 message,
                 request.getId());
     }
