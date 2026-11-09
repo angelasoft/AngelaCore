@@ -67,6 +67,9 @@ public class Presidium {
     @Column(length = 100)
     private String meetingPlace;
 
+    /** 계산한 주회합 차수에 더하는 보정값 (앱 도입 전 기록과 맞추는 용도). 기존 행은 null 이며 0 으로 본다. */
+    private Integer meetingNumberOffset;
+
     @Builder
     private Presidium(Curia curia, String name, User createdBy, PresidiumType type) {
         this.curia = curia;
@@ -83,12 +86,18 @@ public class Presidium {
         this.createdBy = createdBy;
     }
 
+    public int getMeetingNumberOffset() {
+        return meetingNumberOffset == null ? 0 : meetingNumberOffset;
+    }
+
     public void updateProfile(
-            LocalDate foundedDate, LocalDate approvedDate, DayOfWeek meetingDay, LocalTime meetingTime, String meetingPlace) {
+            LocalDate foundedDate, LocalDate approvedDate, DayOfWeek meetingDay, LocalTime meetingTime,
+            String meetingPlace, int meetingNumberOffset) {
         this.foundedDate = foundedDate;
         this.approvedDate = approvedDate;
         this.meetingDay = meetingDay;
         this.meetingTime = meetingTime;
         this.meetingPlace = meetingPlace;
+        this.meetingNumberOffset = meetingNumberOffset;
     }
 }
