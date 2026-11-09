@@ -20,6 +20,7 @@ public interface MembershipRequestRepository extends JpaRepository<MembershipReq
     List<MembershipRequest> findTop10ByRequesterIdAndPresidiumIdOrderByCreatedAtDesc(
             Long requesterUserId, Long presidiumId);
 
-    boolean existsByRequesterIdAndPresidiumIdAndStatus(
-            Long requesterUserId, Long presidiumId, MembershipRequestStatus status);
+    boolean existsByRequesterIdAndPresidiumIdAndStatusAndTypeIn(
+            Long requesterUserId, Long presidiumId, MembershipRequestStatus status,
+            java.util.Collection<MembershipRequestType> types);
 }

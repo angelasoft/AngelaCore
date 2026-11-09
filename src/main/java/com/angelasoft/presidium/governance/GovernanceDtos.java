@@ -76,7 +76,8 @@ public final class GovernanceDtos {
     ) {
     }
 
-    public record SubmitRequest(MembershipRequestType type) {
+    /** activityName 은 type 이 ACTIVITY 일 때만. */
+    public record SubmitRequest(MembershipRequestType type, String activityName) {
     }
 
     public record DecisionRequest(Boolean approve) {
@@ -86,6 +87,7 @@ public final class GovernanceDtos {
             Long id,
             MembershipRequestType type,
             String typeLabel,
+            String activityName,
             Long requesterUserId,
             String requesterName,
             MembershipRequestStatus status,

@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.angelasoft.activity.ActivityDataSeeder;
 import com.angelasoft.admin.security.JwtProvider;
 import com.angelasoft.admin.user.AuthProvider;
 import com.angelasoft.admin.user.User;
@@ -48,6 +49,9 @@ class PresidiumGovernanceTests {
 
 	@Autowired
 	private JwtProvider jwtProvider;
+
+	@Autowired
+	private ActivityDataSeeder activitySeeder;
 
 	private String founder;
 	private String member2;
@@ -172,6 +176,46 @@ class PresidiumGovernanceTests {
 				.andExpect(jsonPath("$[0].type").value("MEMBERSHIP_REQUEST_RESULT"))
 				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("퇴단 처리")));
 		call(get("/app/presidiums/me/members"), founder, null).andExpect(jsonPath("$.length()").value(2));
+	}
+
+	@Test
+	void approvedActivityProposalIsAddedToEveryPresidiumsList() throws Exception {
+		appointViceByVote();
+		String name = "본당 꽃꽂이 " + UUID.randomUUID().toString().substring(0, 4);
+
+		call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"ACTIVITY\", \"activityName\": \" \"}")
+				.andExpect(status().isBadRequest());
+		call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"ACTIVITY\", \"activityName\": \"묵주 기도\"}")
+				.andExpect(status().isConflict());
+
+		long id = json(call(post("/app/presidiums/me/requests"), member3,
+				"{\"type\": \"ACTIVITY\", \"activityName\": \"%s\"}".formatted(name))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.activityName").value(name))
+				.andExpect(jsonPath("$.requiredApprovals").value(2))).get("id").asLong();
+		// 같은 활동은 한 번만 요청하고, 활동 요청이 있어도 등급 변경 신청은 따로 할 수 있다. 간부도 활동 요청은 할 수 있다.
+		call(post("/app/presidiums/me/requests"), founder,
+				"{\"type\": \"ACTIVITY\", \"activityName\": \"%s\"}".formatted(name.replace(" ", "")))
+				.andExpect(status().isConflict());
+		long auxId = json(call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"AUXILIARY\"}")
+				.andExpect(status().isCreated())).get("id").asLong();
+		call(post("/app/presidiums/me/requests/" + auxId + "/cancel"), member3, null).andExpect(status().isOk());
+
+		call(get("/app/notifications"), founder, null)
+				.andExpect(jsonPath("$[1].message").value(org.hamcrest.Matchers.containsString(name)));
+		call(post("/app/presidiums/me/requests/" + id + "/decision"), founder, "{\"approve\": true}");
+		call(post("/app/presidiums/me/requests/" + id + "/decision"), member2, "{\"approve\": true}")
+				.andExpect(jsonPath("$.status").value("APPROVED"));
+
+		mockMvc.perform(get("/app/activities"))
+				.andExpect(jsonPath("$[?(@.name == '%s')]".formatted(name)).exists());
+		call(get("/app/notifications"), member3, null)
+				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("모든 쁘레시디움")));
+
+		// 서버를 다시 켜서 CSV 동기화가 돌아도 승인된 활동은 목록에 남는다.
+		activitySeeder.run(null);
+		mockMvc.perform(get("/app/activities"))
+				.andExpect(jsonPath("$[?(@.name == '%s')]".formatted(name)).exists());
 	}
 
 	@Test

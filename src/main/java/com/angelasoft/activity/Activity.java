@@ -35,11 +35,28 @@ public class Activity {
     @Column(nullable = false)
     private boolean active;
 
+    /**
+     * 단원이 등록을 요청해 4간부 승인으로 추가된 활동. CSV 동기화가 비활성화하지 않는다.
+     * 기능 도입 전 데이터는 DB 에 null 이며 CSV 활동으로 본다.
+     */
+    @Column(name = "is_custom")
+    private Boolean custom;
+
     @Builder
-    private Activity(String name, int sortOrder) {
+    private Activity(String name, int sortOrder, boolean custom) {
         this.name = name;
         this.sortOrder = sortOrder;
         this.active = true;
+        this.custom = custom;
+    }
+
+    public boolean isCustom() {
+        return Boolean.TRUE.equals(custom);
+    }
+
+    /** 공백을 빼고 비교한다 (예: "가정 성화" = "가정성화"). */
+    public static String normalize(String name) {
+        return name == null ? "" : name.replaceAll("\\s+", "");
     }
 
     void activate(int sortOrder) {
@@ -49,5 +66,11 @@ public class Activity {
 
     void deactivate() {
         this.active = false;
+    }
+
+    /** CSV 에서 빠진 활동을 단원 요청으로 다시 넣을 때. 이후 CSV 동기화가 비활성화하지 않는다. */
+    void activateAsCustom(int sortOrder) {
+        activate(sortOrder);
+        this.custom = true;
     }
 }

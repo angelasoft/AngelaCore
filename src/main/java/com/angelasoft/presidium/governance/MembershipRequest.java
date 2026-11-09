@@ -52,17 +52,23 @@ public class MembershipRequest {
     @Column(nullable = false)
     private int officerCount;
 
+    /** 활동 등록 요청([MembershipRequestType#ACTIVITY])일 때 등록할 활동 이름. */
+    @Column(length = 50)
+    private String activityName;
+
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
     private LocalDateTime decidedAt;
 
     @Builder
-    private MembershipRequest(Presidium presidium, User requester, MembershipRequestType type, int officerCount) {
+    private MembershipRequest(
+            Presidium presidium, User requester, MembershipRequestType type, int officerCount, String activityName) {
         this.presidium = presidium;
         this.requester = requester;
         this.type = type;
         this.officerCount = officerCount;
+        this.activityName = activityName;
         this.status = MembershipRequestStatus.PENDING;
         this.createdAt = LocalDateTime.now();
     }

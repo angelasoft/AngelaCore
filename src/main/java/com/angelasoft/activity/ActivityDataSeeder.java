@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * - CSV 에 있고 DB 에 없으면 추가, 있으면 활성화하고 CSV 순서로 정렬값 갱신
  * - DB 에 있지만 CSV 에서 빠졌으면 비활성화 (보고 기록 보존을 위해 삭제하지 않음)
+ * - 단원이 등록 요청해 승인된 활동(custom)은 CSV 에 없어도 그대로 둔다
  */
 @Slf4j
 @Component
@@ -60,7 +61,7 @@ public class ActivityDataSeeder implements ApplicationRunner {
 
         int deactivated = 0;
         for (Activity stale : existing.values()) {
-            if (stale.isActive()) {
+            if (stale.isActive() && !stale.isCustom()) {
                 stale.deactivate();
                 deactivated++;
             }
