@@ -50,8 +50,25 @@ public class PresidiumProfileService {
             /** 이번 주가 휴회면 다음 회합 차수. */
             Integer nextMeetingNumber,
             List<RecessResponse> recesses,
+            CouncilResponse council,
             boolean canEdit
     ) {
+    }
+
+    /** 평의회(Cu) 월례회의. weekOfMonth 1~4, 5 는 마지막 주. 입력 전이면 값들이 null. */
+    public record CouncilResponse(
+            String curiaName,
+            Integer weekOfMonth,
+            DayOfWeek day,
+            String scheduleLabel,
+            String time,
+            String place,
+            LocalDate nextDate
+    ) {
+    }
+
+    /** 시간은 "14:00". 요일·주차를 비우면 일정을 지운다. */
+    public record CouncilRequest(Integer weekOfMonth, DayOfWeek day, String time, String place) {
     }
 
     public record RecessResponse(Long id, LocalDate weekStart, LocalDate weekEnd, String reason) {
@@ -73,7 +90,7 @@ public class PresidiumProfileService {
     }
 
     /** 승인일부터 센 이번 주 차수. */
-    record MeetingCount(Integer thisWeekNumber, boolean thisWeekRecess, Integer nextNumber) {
+    public record MeetingCount(Integer thisWeekNumber, boolean thisWeekRecess, Integer nextNumber) {
     }
 
     @Transactional(readOnly = true)
@@ -135,6 +152,41 @@ public class PresidiumProfileService {
         return toResponse(presidium, true);
     }
 
+    /** 같은 Cu 의 모든 Pr 이 함께 보는 일정이라 어느 Pr 의 4간부든 고칠 수 있다. */
+    @Transactional
+    public ProfileResponse updateCouncil(Long userId, CouncilRequest request) {
+        PresidiumMembership me = requireOfficer(userId);
+        Integer week = request.weekOfMonth();
+        DayOfWeek day = request.day();
+        if ((week == null) != (day == null)) {
+            throw GovernanceException.badRequest("월례회의 주차와 요일을 함께 골라 주세요.");
+        }
+        if (week != null && (week < 1 || week > MeetingCalendar.LAST_WEEK)) {
+            throw GovernanceException.badRequest("주차는 첫째 주~넷째 주 또는 마지막 주로 골라 주세요.");
+        }
+        String place = request.place() == null ? null : request.place().strip();
+        if (place != null && place.length() > MAX_PLACE_LENGTH) {
+            throw GovernanceException.badRequest("장소는 " + MAX_PLACE_LENGTH + "자까지 입력할 수 있습니다.");
+        }
+        me.getPresidium().getCuria().updateCouncilSchedule(
+                week, day, parseTime(request.time()), place == null || place.isEmpty() ? null : place);
+        return toResponse(me.getPresidium(), true);
+    }
+
+    /** 이번 주 주회합 차수 (출석부 기록용). */
+    @Transactional(readOnly = true)
+    public MeetingCount meetingCountFor(Presidium p, LocalDate today) {
+        Set<LocalDate> recessWeeks = recessWeeks(p.getId());
+        return meetingCount(p.getApprovedDate(), p.getMeetingDay(), p.getMeetingNumberOffset(), recessWeeks, today);
+    }
+
+    @Transactional(readOnly = true)
+    public Set<LocalDate> recessWeeks(Long presidiumId) {
+        return recessRepository.findByPresidiumIdOrderByWeekStartDesc(presidiumId).stream()
+                .map(PresidiumRecess::getWeekStart)
+                .collect(Collectors.toSet());
+    }
+
     private PresidiumMembership requireOfficer(Long userId) {
         PresidiumMembership me = membershipLookup.require(userId);
         if (!me.isOfficer()) {
@@ -160,7 +212,7 @@ public class PresidiumProfileService {
                 p.getFoundedDate(),
                 p.getApprovedDate(),
                 p.getMeetingDay(),
-                p.getMeetingDay() == null ? null : dayLabel(p.getMeetingDay()),
+                p.getMeetingDay() == null ? null : MeetingCalendar.dayLabel(p.getMeetingDay()),
                 p.getMeetingTime() == null ? null : p.getMeetingTime().toString(),
                 p.getMeetingPlace(),
                 p.getMeetingNumberOffset(),
@@ -172,7 +224,19 @@ public class PresidiumProfileService {
                 recesses.stream()
                         .map(r -> new RecessResponse(r.getId(), r.getWeekStart(), r.getWeekStart().plusDays(6), r.getReason()))
                         .toList(),
+                council(p.getCuria(), today),
                 canEdit);
+    }
+
+    private static CouncilResponse council(Curia curia, LocalDate today) {
+        return new CouncilResponse(
+                curia.getName(),
+                curia.getCouncilWeekOfMonth(),
+                curia.getCouncilDay(),
+                MeetingCalendar.councilLabel(curia.getCouncilWeekOfMonth(), curia.getCouncilDay()),
+                curia.getCouncilTime() == null ? null : curia.getCouncilTime().toString(),
+                curia.getCouncilPlace(),
+                MeetingCalendar.nextCouncilMeeting(curia.getCouncilWeekOfMonth(), curia.getCouncilDay(), today));
     }
 
     /**
@@ -206,18 +270,6 @@ public class PresidiumProfileService {
 
     private static LocalDate weekStart(LocalDate date) {
         return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-    }
-
-    private static String dayLabel(DayOfWeek day) {
-        return switch (day) {
-            case MONDAY -> "월요일";
-            case TUESDAY -> "화요일";
-            case WEDNESDAY -> "수요일";
-            case THURSDAY -> "목요일";
-            case FRIDAY -> "금요일";
-            case SATURDAY -> "토요일";
-            case SUNDAY -> "일요일";
-        };
     }
 
     private static LocalDate parseDate(String value, String label) {

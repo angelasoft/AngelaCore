@@ -17,7 +17,7 @@ public final class GovernanceDtos {
     }
 
     /** 단원 표시 이름. 예: "박우석(유스티노)". */
-    static String displayName(User user) {
+    public static String displayName(User user) {
         String name = user.getName() == null || user.getName().isBlank() ? user.getEmail() : user.getName();
         String baptismal = user.getBaptismalName();
         return baptismal == null || baptismal.isBlank() ? name : name + "(" + baptismal + ")";

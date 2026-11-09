@@ -1,6 +1,7 @@
 package com.angelasoft.presidium;
 
 import com.angelasoft.admin.security.AdminUserDetails;
+import com.angelasoft.presidium.PresidiumProfileService.CouncilRequest;
 import com.angelasoft.presidium.PresidiumProfileService.ProfileResponse;
 import com.angelasoft.presidium.PresidiumProfileService.RecessRequest;
 import com.angelasoft.presidium.PresidiumProfileService.UpdateRequest;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  *   GET    /app/presidiums/me/profile                 정보, 휴회 주 목록, 이번 주 주회합 차수
  *   PUT    /app/presidiums/me/profile                 {foundedDate, approvedDate, meetingDay, meetingTime, meetingPlace, meetingNumberOffset}
+ *   PUT    /app/presidiums/me/profile/council         {weekOfMonth(1~4, 5=마지막), day, time, place}  평의회 월례회의
  *   POST   /app/presidiums/me/profile/recesses        {date, reason}  date 가 든 주를 휴회로 등록
  *   DELETE /app/presidiums/me/profile/recesses/{id}
  */
@@ -41,6 +43,14 @@ public class PresidiumProfileController {
             @RequestBody UpdateRequest request
     ) {
         return profileService.update(principal.getUserId(), request);
+    }
+
+    @PutMapping("/council")
+    public ProfileResponse updateCouncil(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @RequestBody CouncilRequest request
+    ) {
+        return profileService.updateCouncil(principal.getUserId(), request);
     }
 
     @PostMapping("/recesses")
