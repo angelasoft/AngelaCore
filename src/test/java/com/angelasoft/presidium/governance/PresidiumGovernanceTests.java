@@ -290,7 +290,8 @@ class PresidiumGovernanceTests {
 				.andExpect(status().isNotFound());
 		call(post("/app/presidiums/me/dissolve"), founder, "{\"confirmName\": \"다른 이름\"}")
 				.andExpect(status().isBadRequest());
-		call(post("/app/presidiums/me/dissolve"), founder, "{\"confirmName\": \"%s\"}".formatted(presidiumName))
+		// 띄어쓰기·끝의 "Pr" 은 상관없다.
+		call(post("/app/presidiums/me/dissolve"), founder, "{\"confirmName\": \" %s Pr\"}".formatted(presidiumName))
 				.andExpect(status().isOk());
 
 		call(get("/app/presidiums/me"), founder, null).andExpect(jsonPath("$.joined").value(false));

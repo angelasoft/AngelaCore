@@ -29,7 +29,7 @@ public class PresidiumDissolutionService {
     private final PresidiumMembershipRepository membershipRepository;
     private final EntityManager em;
 
-    /** 실수로 지우지 않게 쁘레시디움 이름을 똑같이 입력해야 한다. */
+    /** 실수로 지우지 않게 Pr 이름을 입력해야 한다 (띄어쓰기·끝의 "Pr" 은 상관없음). */
     @Transactional
     public void dissolve(Long userId, String confirmName) {
         PresidiumMembership me = membershipLookup.require(userId);
@@ -37,8 +37,9 @@ public class PresidiumDissolutionService {
         if (membershipRepository.findByPresidiumIdWithUser(presidium.getId()).size() > 1) {
             throw GovernanceException.conflict("다른 단원이 남아 있으면 쁘레시디움을 해산할 수 없습니다.");
         }
-        if (confirmName == null || !confirmName.strip().equals(presidium.getName())) {
-            throw GovernanceException.badRequest("확인을 위해 쁘레시디움 이름을 똑같이 입력해 주세요.");
+        if (confirmName == null || confirmName.isBlank()
+                || !normalizeName(confirmName).equals(normalizeName(presidium.getName()))) {
+            throw GovernanceException.badRequest("확인을 위해 Pr 이름을 입력해 주세요. 예: " + presidium.getName());
         }
         Long presidiumId = presidium.getId();
         Long curiaId = presidium.getCuria().getId();
@@ -48,6 +49,12 @@ public class PresidiumDissolutionService {
         deleteAll(presidiumId, curiaId);
         em.clear();
         log.info("쁘레시디움 해산: {} (id={}) by user {}", name, presidiumId, userId);
+    }
+
+    /** 해산 확인용: 띄어쓰기는 보지 않고 끝의 "Pr" 은 떼서 비교한다. "즐거움의 샘", "즐거움의샘Pr" 모두 같다. */
+    static String normalizeName(String name) {
+        String compact = name.replaceAll("\\s+", "");
+        return compact.toLowerCase().endsWith("pr") ? compact.substring(0, compact.length() - 2) : compact;
     }
 
     private void deleteAll(Long presidiumId, Long curiaId) {
