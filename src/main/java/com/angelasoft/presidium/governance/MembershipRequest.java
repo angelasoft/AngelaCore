@@ -48,9 +48,14 @@ public class MembershipRequest {
     @Column(nullable = false, length = 20)
     private MembershipRequestStatus status;
 
-    /** 신청 시점에 임명된 간부 수. */
+    /** 신청 시점에 승인할 수 있는 간부 수. 과반 기준이 된다. */
     @Column(nullable = false)
     private int officerCount;
+
+    /** 기능 도입 전 신청은 DB 에 null 이며 4간부 과반으로 본다. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private RequestApprover approver;
 
     /** 활동 등록 요청([MembershipRequestType#ACTIVITY])일 때 등록할 활동 이름. */
     @Column(length = 50)
@@ -63,12 +68,14 @@ public class MembershipRequest {
 
     @Builder
     private MembershipRequest(
-            Presidium presidium, User requester, MembershipRequestType type, int officerCount, String activityName) {
+            Presidium presidium, User requester, MembershipRequestType type, int officerCount, String activityName,
+            RequestApprover approver) {
         this.presidium = presidium;
         this.requester = requester;
         this.type = type;
         this.officerCount = officerCount;
         this.activityName = activityName;
+        this.approver = approver == null ? RequestApprover.OFFICERS : approver;
         this.status = MembershipRequestStatus.PENDING;
         this.createdAt = LocalDateTime.now();
     }
@@ -76,6 +83,10 @@ public class MembershipRequest {
     /** 처리에 필요한 승인 수 (간부 과반). */
     public int requiredApprovals() {
         return officerCount / 2 + 1;
+    }
+
+    public RequestApprover getApprover() {
+        return approver == null ? RequestApprover.OFFICERS : approver;
     }
 
     public boolean isPending() {

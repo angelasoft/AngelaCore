@@ -1,6 +1,7 @@
 package com.angelasoft.presidium.governance;
 
 import com.angelasoft.admin.security.AdminUserDetails;
+import com.angelasoft.presidium.PresidiumDissolutionService;
 import com.angelasoft.presidium.PresidiumMembership;
 import com.angelasoft.presidium.PresidiumMembershipRepository;
 import com.angelasoft.presidium.governance.GovernanceDtos.DecisionRequest;
@@ -38,6 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
  *   POST /app/presidiums/me/elections/{id}/appoint      {appointedDate, termYears, termMonths}  당선 후 4간부·당선자
  *   POST /app/presidiums/me/elections/{id}/cancel       당선 후 임명하지 않기로 할 때, 4간부만
  *   PUT  /app/presidiums/me/officers/{userId}/term      {appointedDate, termYears, termMonths}  4간부만
+ *   POST /app/presidiums/me/dissolve                    {confirmName}  혼자 남은 단원의 퇴단 = 쁘레시디움 해산
  *   GET  /app/presidiums/me/requests
  *   POST /app/presidiums/me/requests                    {type: AUXILIARY | ACTIVE | WITHDRAWAL | ACTIVITY, activityName}
  *   POST /app/presidiums/me/requests/{id}/decision      {approve}  4간부만
@@ -54,6 +56,7 @@ public class PresidiumGovernanceController {
     private final MembershipRequestService requestService;
     private final HigherDegreeService higherDegreeService;
     private final OfficerTermService termService;
+    private final PresidiumDissolutionService dissolutionService;
 
     @GetMapping("/members")
     @Transactional(readOnly = true)
@@ -120,6 +123,18 @@ public class PresidiumGovernanceController {
             @RequestBody OfficerTermRequest request
     ) {
         return termService.updateTerm(principal.getUserId(), officerUserId, request);
+    }
+
+    /** 혼자 남은 단원의 퇴단: 쁘레시디움과 관련 데이터를 모두 지운다. */
+    @PostMapping("/dissolve")
+    public void dissolve(
+            @AuthenticationPrincipal AdminUserDetails principal,
+            @RequestBody DissolveRequest request
+    ) {
+        dissolutionService.dissolve(principal.getUserId(), request.confirmName());
+    }
+
+    public record DissolveRequest(String confirmName) {
     }
 
     @GetMapping("/requests")

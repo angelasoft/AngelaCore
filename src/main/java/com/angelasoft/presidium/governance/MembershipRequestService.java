@@ -8,6 +8,7 @@ import com.angelasoft.activity.ActivityRegistry;
 import com.angelasoft.notification.NotificationService;
 import com.angelasoft.notification.NotificationType;
 import com.angelasoft.presidium.MemberGrade;
+import com.angelasoft.presidium.OfficerRole;
 import com.angelasoft.presidium.PresidiumMembership;
 import com.angelasoft.presidium.PresidiumMembershipRepository;
 import com.angelasoft.presidium.governance.GovernanceDtos.RequestResponse;
@@ -24,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
  * 협조단원·행동단원·퇴단 신청과 활동 등록 요청.
  *
  * - 등급 변경·퇴단: 간부는 간부 이동으로 후임이 임명된 뒤 신청할 수 있다. 처리 중인 신청은 한 사람당 하나.
+ *   간부만 남은 쁘레시디움에서는 단장 외 간부가 퇴단 신청할 수 있고 단장이 승인한다.
+ *   혼자 남은 단원은 신청 대신 쁘레시디움 해산(PresidiumDissolutionService)으로 퇴단한다.
  * - 활동 등록 요청: 간부를 포함해 누구나 할 수 있고, 승인되면 모든 쁘레시디움의 활동 목록에 추가된다.
  * - 신청하면 임명된 4간부 각각에게 알림이 가고, 신청 시점 간부 수의 과반이 승인하면 처리된다.
  */
@@ -68,13 +71,25 @@ public class MembershipRequestService {
         Long presidiumId = me.getPresidium().getId();
         String activity = null;
         if (type.changesMembership()) {
-            checkMembershipChange(me, type);
+            checkMembershipChange(me, type, membershipRepository.findByPresidiumIdWithUser(presidiumId));
         } else {
             activity = checkActivityProposal(presidiumId, activityName);
         }
 
+        // 간부만 남아 간부가 퇴단 신청하면 단장이 (공석이면 나머지 간부가) 승인한다.
         List<PresidiumMembership> officers = membershipRepository.findByPresidiumIdAndOfficerRoleIsNotNull(presidiumId);
-        if (officers.isEmpty()) {
+        RequestApprover approver = RequestApprover.OFFICERS;
+        List<PresidiumMembership> approvers = officers;
+        if (type == MembershipRequestType.WITHDRAWAL && me.isOfficer()) {
+            List<PresidiumMembership> president = officers.stream()
+                    .filter(o -> o.getOfficerRole() == OfficerRole.PRESIDENT)
+                    .toList();
+            approver = president.isEmpty() ? RequestApprover.OTHER_OFFICERS : RequestApprover.PRESIDENT;
+            approvers = president.isEmpty()
+                    ? officers.stream().filter(o -> !o.getId().equals(me.getId())).toList()
+                    : president;
+        }
+        if (approvers.isEmpty()) {
             throw GovernanceException.conflict("승인할 간부가 없습니다. 먼저 간부 이동으로 간부를 임명해 주세요.");
         }
 
@@ -82,8 +97,9 @@ public class MembershipRequestService {
                 .presidium(me.getPresidium())
                 .requester(me.getUser())
                 .type(type)
-                .officerCount(officers.size())
+                .officerCount(approvers.size())
                 .activityName(activity)
+                .approver(approver)
                 .build());
 
         String message = activity == null
@@ -91,7 +107,7 @@ public class MembershipRequestService {
                 : "%s 단원이 '%s' 활동 등록을 요청했습니다. 승인하면 모든 쁘레시디움 활동 목록에 추가됩니다."
                         .formatted(displayName(me.getUser()), activity);
         notificationService.notify(
-                officers.stream().map(o -> o.getUser().getId()).toList(),
+                approvers.stream().map(o -> o.getUser().getId()).toList(),
                 NotificationType.MEMBERSHIP_REQUEST,
                 NotificationService.presidiumTag(me.getPresidium().getName()) + type.getLabel() + " 승인 요청",
                 message,
@@ -100,11 +116,27 @@ public class MembershipRequestService {
         return toResponse(request, me);
     }
 
-    /** 등급 변경·퇴단: 간부는 후임 임명 뒤에만, 처리 중인 등급 변경·퇴단 신청은 한 번에 하나. */
-    private void checkMembershipChange(PresidiumMembership me, MembershipRequestType type) {
-        if (me.isOfficer()) {
+    /**
+     * 등급 변경·퇴단: 간부는 후임 임명 뒤에만, 처리 중인 등급 변경·퇴단 신청은 한 번에 하나.
+     * 단, 간부만 남은 쁘레시디움에서는 단장 외 간부가 퇴단 신청할 수 있다. 단장은 혼자 남았을 때 해산으로 퇴단한다.
+     */
+    private void checkMembershipChange(
+            PresidiumMembership me, MembershipRequestType type, List<PresidiumMembership> members) {
+        boolean withdrawal = type == MembershipRequestType.WITHDRAWAL;
+        if (withdrawal && members.size() == 1) {
             throw GovernanceException.badRequest(
-                    "간부는 간부 이동으로 후임이 임명된 뒤 " + type.getLabel() + "을 할 수 있습니다.");
+                    "혼자 남은 단원이 퇴단하면 쁘레시디움이 해산됩니다. 설정의 퇴단(쁘레시디움 해산)으로 진행해 주세요.");
+        }
+        if (me.isOfficer()) {
+            boolean onlyOfficers = members.stream().allMatch(PresidiumMembership::isOfficer);
+            if (!withdrawal || !onlyOfficers) {
+                throw GovernanceException.badRequest(
+                        "간부는 간부 이동으로 후임이 임명된 뒤 " + type.getLabel() + "을 할 수 있습니다.");
+            }
+            if (me.getOfficerRole() == OfficerRole.PRESIDENT) {
+                throw GovernanceException.badRequest(
+                        "단장은 다른 간부가 모두 퇴단한 뒤 퇴단할 수 있습니다. 혼자 남으면 퇴단과 함께 쁘레시디움이 해산됩니다.");
+            }
         }
         if (type == MembershipRequestType.AUXILIARY && !me.getGrade().isActiveMember()) {
             throw GovernanceException.conflict("이미 협조단원입니다.");
@@ -156,6 +188,11 @@ public class MembershipRequestService {
         if (!request.isPending()) {
             throw GovernanceException.conflict("이미 처리된 신청입니다.");
         }
+        if (!isApprover(request, me)) {
+            throw GovernanceException.forbidden(request.getApprover() == RequestApprover.PRESIDENT
+                    ? "이 신청은 단장이 승인합니다."
+                    : "본인 신청은 승인할 수 없습니다.");
+        }
         if (decisionRepository.existsByRequestIdAndOfficerId(requestId, userId)) {
             throw GovernanceException.conflict("이미 결정했습니다.");
         }
@@ -191,6 +228,17 @@ public class MembershipRequestService {
         }
         request.finish(MembershipRequestStatus.CANCELED);
         return toResponse(request, me);
+    }
+
+    private static boolean isApprover(MembershipRequest request, PresidiumMembership me) {
+        if (!me.isOfficer()) {
+            return false;
+        }
+        return switch (request.getApprover()) {
+            case OFFICERS -> true;
+            case PRESIDENT -> me.getOfficerRole() == OfficerRole.PRESIDENT;
+            case OTHER_OFFICERS -> !request.getRequester().getId().equals(me.getUser().getId());
+        };
     }
 
     private MembershipRequest findInMyPresidium(Long requestId, PresidiumMembership me) {
@@ -262,7 +310,7 @@ public class MembershipRequestService {
                 .map(RequestDecision::isApprove)
                 .findFirst()
                 .orElse(null);
-        boolean canDecide = request.isPending() && me.isOfficer() && myDecision == null;
+        boolean canDecide = request.isPending() && isApprover(request, me) && myDecision == null;
 
         return new RequestResponse(
                 request.getId(),

@@ -61,7 +61,12 @@ class PresidiumGovernanceTests {
 	@Autowired
 	private OfficerTermService termService;
 
+	@Autowired
+	private com.angelasoft.presidium.CuriaRepository curiaRepository;
+
 	private Long founderId;
+	private String curiaName;
+	private String presidiumName;
 	private String founder;
 	private String member2;
 	private String member3;
@@ -82,9 +87,11 @@ class PresidiumGovernanceTests {
 
 		long parishId = parishRepository.findAll().get(0).getId();
 		String suffix = UUID.randomUUID().toString().substring(0, 8);
+		curiaName = "테스트Cu" + suffix;
+		presidiumName = "테스트Pr" + suffix;
 		JsonNode created = json(call(post("/app/presidiums"), founder, """
-				{"parishId": %d, "curiaName": "테스트Cu%s", "name": "테스트Pr%s"}
-				""".formatted(parishId, suffix, suffix))
+				{"parishId": %d, "curiaName": "%s", "name": "%s"}
+				""".formatted(parishId, curiaName, presidiumName))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.officerRole").value("PRESIDENT"))
 				.andExpect(jsonPath("$.grade").value("ACTIVE")));
@@ -248,6 +255,56 @@ class PresidiumGovernanceTests {
 				.andExpect(jsonPath("$[0].type").value("MEMBERSHIP_REQUEST_RESULT"))
 				.andExpect(jsonPath("$[0].message").value(org.hamcrest.Matchers.containsString("퇴단 처리")));
 		call(get("/app/presidiums/me/members"), founder, null).andExpect(jsonPath("$.length()").value(2));
+	}
+
+	@Test
+	void officersWithdrawWhenOnlyOfficersRemainAndLastMemberDissolvesPresidium() throws Exception {
+		appointViceByVote();
+
+		// 단원이 남아 있으면 간부는 퇴단 신청할 수 없다.
+		call(post("/app/presidiums/me/requests"), member2, "{\"type\": \"WITHDRAWAL\"}").andExpect(status().isBadRequest());
+		long memberLeave = json(call(post("/app/presidiums/me/requests"), member3, "{\"type\": \"WITHDRAWAL\"}"))
+				.get("id").asLong();
+		call(post("/app/presidiums/me/requests/" + memberLeave + "/decision"), founder, "{\"approve\": true}");
+		call(post("/app/presidiums/me/requests/" + memberLeave + "/decision"), member2, "{\"approve\": true}")
+				.andExpect(jsonPath("$.status").value("APPROVED"));
+
+		// 간부만 남으면 단장 외 간부는 퇴단 신청할 수 있고 단장이 승인한다. 단장은 아직 퇴단할 수 없다.
+		call(post("/app/presidiums/me/requests"), founder, "{\"type\": \"WITHDRAWAL\"}").andExpect(status().isBadRequest());
+		long viceLeave = json(call(post("/app/presidiums/me/requests"), member2, "{\"type\": \"WITHDRAWAL\"}")
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.requiredApprovals").value(1))).get("id").asLong();
+		call(post("/app/presidiums/me/requests/" + viceLeave + "/decision"), member2, "{\"approve\": true}")
+				.andExpect(status().isForbidden());
+		call(get("/app/presidiums/me/requests"), founder, null)
+				.andExpect(jsonPath("$.pendingApprovals[0].canDecide").value(true));
+		call(post("/app/presidiums/me/requests/" + viceLeave + "/decision"), founder, "{\"approve\": true}")
+				.andExpect(jsonPath("$.status").value("APPROVED"));
+		call(get("/app/presidiums/me"), member2, null).andExpect(jsonPath("$.joined").value(false));
+
+		// 혼자 남은 단장은 신청 대신 해산한다. 이름을 똑같이 입력해야 한다.
+		call(put("/app/presidiums/me/profile"), founder, "{\"meetingDay\": \"FRIDAY\", \"meetingTime\": \"20:00\"}");
+		call(post("/app/presidiums/me/profile/recesses"), founder, "{\"date\": \"2026-12-25\"}").andExpect(status().isOk());
+		call(post("/app/presidiums/me/requests"), founder, "{\"type\": \"WITHDRAWAL\"}").andExpect(status().isBadRequest());
+		call(post("/app/presidiums/me/dissolve"), member2, "{\"confirmName\": \"%s\"}".formatted(presidiumName))
+				.andExpect(status().isNotFound());
+		call(post("/app/presidiums/me/dissolve"), founder, "{\"confirmName\": \"다른 이름\"}")
+				.andExpect(status().isBadRequest());
+		call(post("/app/presidiums/me/dissolve"), founder, "{\"confirmName\": \"%s\"}".formatted(presidiumName))
+				.andExpect(status().isOk());
+
+		call(get("/app/presidiums/me"), founder, null).andExpect(jsonPath("$.joined").value(false));
+		call(get("/app/notifications"), founder, null)
+				.andExpect(jsonPath("$[?(@.type == 'ELECTION_STARTED' || @.type == 'ELECTION_RESULT')]").isEmpty())
+				.andExpect(jsonPath("$[?(@.type == 'MEMBERSHIP_REQUEST')]").isEmpty());
+
+		// 다른 쁘레시디움이 없던 평의회도 지워지고, 같은 이름으로 다시 만들 수 있다.
+		long parishId = parishRepository.findAll().get(0).getId();
+		org.assertj.core.api.Assertions.assertThat(curiaRepository.findByParishIdAndName(parishId, curiaName)).isEmpty();
+		call(post("/app/presidiums"), founder, """
+				{"parishId": %d, "curiaName": "%s", "name": "%s"}
+				""".formatted(parishId, curiaName, presidiumName))
+				.andExpect(status().isCreated());
 	}
 
 	@Test
