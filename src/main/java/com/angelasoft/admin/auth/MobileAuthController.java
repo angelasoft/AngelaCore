@@ -1,6 +1,7 @@
 package com.angelasoft.admin.auth;
 
 import com.angelasoft.admin.security.AdminUserDetails;
+import com.angelasoft.admin.security.OAuthLoginMode;
 import com.angelasoft.admin.user.User;
 import com.angelasoft.admin.user.UserRepository;
 import jakarta.servlet.http.HttpServletResponse;
@@ -59,7 +60,8 @@ public class MobileAuthController {
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, mode.toString());
         log.info("[MobileAuth] {} OAuth 시작 → ANGELA_OAUTH_MODE=mobile 쿠키 설정", registrationId);
-        response.sendRedirect("/oauth2/authorization/" + registrationId);
+        // 쿠키가 막혀도 인가 요청 저장소가 모바일 로그인임을 알 수 있게 표시를 붙인다.
+        response.sendRedirect("/oauth2/authorization/" + registrationId + "?mode=" + OAuthLoginMode.MOBILE);
     }
 
     @GetMapping("/me")

@@ -1,7 +1,7 @@
 package com.angelasoft.admin.auth;
 
+import com.angelasoft.admin.security.OAuthLoginMode;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -34,7 +34,7 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
             HttpServletResponse response,
             AuthenticationException exception
     ) throws IOException, ServletException {
-        if (!isMobileRequest(request)) {
+        if (!OAuthLoginMode.isLikelyMobile(request)) {
             super.onAuthenticationFailure(request, response, exception);
             return;
         }
@@ -60,19 +60,5 @@ public class OAuth2AuthenticationFailureHandler extends SimpleUrlAuthenticationF
                 .encode()
                 .toUriString();
         getRedirectStrategy().sendRedirect(request, response, redirect);
-    }
-
-    private boolean isMobileRequest(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            return false;
-        }
-        for (Cookie cookie : cookies) {
-            if (OAuth2AuthenticationSuccessHandler.OAUTH_MODE_COOKIE.equals(cookie.getName())
-                    && "mobile".equals(cookie.getValue())) {
-                return true;
-            }
-        }
-        return false;
     }
 }

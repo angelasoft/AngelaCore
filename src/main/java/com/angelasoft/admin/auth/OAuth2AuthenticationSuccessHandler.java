@@ -1,8 +1,8 @@
 package com.angelasoft.admin.auth;
 
 import com.angelasoft.admin.security.JwtProvider;
+import com.angelasoft.admin.security.OAuthLoginMode;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -22,8 +22,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     /** 모바일 OAuth 시작 시 심어두는 모드 쿠키 이름. */
-    public static final String OAUTH_MODE_COOKIE = "ANGELA_OAUTH_MODE";
-    private static final String MOBILE_MODE = "mobile";
+    public static final String OAUTH_MODE_COOKIE = OAuthLoginMode.COOKIE;
 
     private final JwtProvider jwtProvider;
 
@@ -100,18 +99,10 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     }
 
     private boolean isMobileRequest(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            log.info("[OAuth2] 쿠키 없음 → 웹 모드로 처리");
-            return false;
+        boolean mobile = OAuthLoginMode.isMobile(request);
+        if (!mobile) {
+            log.info("[OAuth2] 모바일 로그인 표시 없음 → 웹 모드로 처리");
         }
-        for (Cookie cookie : cookies) {
-            log.debug("[OAuth2] 쿠키 확인: {}={}", cookie.getName(), cookie.getValue());
-            if (OAUTH_MODE_COOKIE.equals(cookie.getName()) && MOBILE_MODE.equals(cookie.getValue())) {
-                return true;
-            }
-        }
-        log.info("[OAuth2] ANGELA_OAUTH_MODE 쿠키 없음 → 웹 모드로 처리");
-        return false;
+        return mobile;
     }
 }
