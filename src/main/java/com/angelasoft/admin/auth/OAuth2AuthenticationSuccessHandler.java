@@ -25,6 +25,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     public static final String OAUTH_MODE_COOKIE = OAuthLoginMode.COOKIE;
 
     private final JwtProvider jwtProvider;
+    private final RefreshTokenService refreshTokenService;
 
     @Value("${app.jwt.cookie-name}")
     private String accessTokenCookieName;
@@ -88,13 +89,15 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
         String redirect = UriComponentsBuilder.fromUriString(mobileRedirectUri)
                 .queryParam("token", accessToken)
+                .queryParam("refreshToken", refreshTokenService.issue(principal.getUserId()))
                 .queryParam("registered", principal.isAppRegistered())
                 .queryParam("email", principal.getEmail())
                 .build()
                 .encode()
                 .toUriString();
 
-        log.info("[OAuth2] 모바일 딥링크로 리다이렉트: {}", redirect);
+        log.info("[OAuth2] 모바일 딥링크로 리다이렉트 (user={}, registered={})",
+                principal.getUserId(), principal.isAppRegistered());
         getRedirectStrategy().sendRedirect(request, response, redirect);
     }
 

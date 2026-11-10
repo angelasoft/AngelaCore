@@ -32,6 +32,9 @@ import org.springframework.web.bind.annotation.RestController;
  *      딥링크로 리다이렉트 (모바일 모드일 때)
  *   3) 미가입(registered=false)이면 앱에서 회원가입 폼 작성 후
  *      {@code POST /app/auth/signup} (Bearer 토큰)으로 프로필 완성
+ *   4) 딥링크에는 갱신 토큰(refreshToken)도 함께 온다. 접근 토큰이 만료되면
+ *      {@code POST /app/auth/token/refresh {refreshToken}} 로 새 토큰 한 쌍을 받고,
+ *      로그아웃할 때 {@code POST /app/auth/logout {refreshToken}} 로 끊는다.
  */
 @Slf4j
 @RestController
@@ -40,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MobileAuthController {
 
     private final UserRepository userRepository;
+    private final RefreshTokenService refreshTokenService;
 
     @Value("${app.cookie.secure}")
     private boolean secureCookie;
@@ -62,6 +66,30 @@ public class MobileAuthController {
         log.info("[MobileAuth] {} OAuth 시작 → ANGELA_OAUTH_MODE=mobile 쿠키 설정", registrationId);
         // 쿠키가 막혀도 인가 요청 저장소가 모바일 로그인임을 알 수 있게 표시를 붙인다.
         response.sendRedirect("/oauth2/authorization/" + registrationId + "?mode=" + OAuthLoginMode.MOBILE);
+    }
+
+    /** 접근 토큰이 만료되면 갱신 토큰으로 새 접근 토큰·갱신 토큰을 받는다. 실패하면 401 (다시 로그인). */
+    @PostMapping("/token/refresh")
+    public ResponseEntity<?> refresh(@RequestBody RefreshRequest request) {
+        try {
+            RefreshTokenService.Tokens tokens = refreshTokenService.rotate(request.refreshToken());
+            return ResponseEntity.ok(Map.of(
+                    "accessToken", tokens.accessToken(),
+                    "refreshToken", tokens.refreshToken(),
+                    "registered", tokens.registered()));
+        } catch (RefreshTokenService.InvalidRefreshTokenException e) {
+            return ResponseEntity.status(401).body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    /** 로그아웃: 이 기기의 갱신 토큰을 끊는다. */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestBody RefreshRequest request) {
+        refreshTokenService.revoke(request.refreshToken());
+        return ResponseEntity.noContent().build();
+    }
+
+    public record RefreshRequest(String refreshToken) {
     }
 
     @GetMapping("/me")

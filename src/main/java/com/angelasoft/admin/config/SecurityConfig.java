@@ -53,6 +53,8 @@ public class SecurityConfig {
                                 "/login/**",
                                 "/auth/**",
                                 "/app/auth/oauth/**",
+                                "/app/auth/token/refresh",
+                                "/app/auth/logout",
                                 "/app/regions/**",
                                 "/error"
                         ).permitAll()
